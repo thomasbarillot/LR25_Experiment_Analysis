@@ -22,7 +22,7 @@ from UXSDataPreProcessing import UXSDataPreProcessing
 
 # Set the runnr here to also change the savefile
 runnr = 30
-ds = DataSource('exp=amolr2516:run={}:smd:dir=/reg/d/psdm/amo/amolr2516/xtc:live'.format(runnr))
+ds = DataSource('exp=amolr2516:run={}:smd:dir=/reg/d/ffb/amo/amolr2516/xtc:live'.format(runnr))
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
