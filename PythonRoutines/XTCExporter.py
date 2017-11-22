@@ -53,17 +53,19 @@ class XTCExporter(object):
 #        XTCAVRetrieval = ShotToShotCharacterization()
 #        XTCAVRetrieval.SetEnv(self.ds.env())
 
-        self.MBES  = Detector(self.args.MBES)
-        #self.XTCAV = Detector(self.args.XTCAV)
+        self.SHES  = Detector(self.args.SHES)
+        self.UXS = Detector(self.args.UXS)
+	
+	self.XTCAV = Detector(self.args.XTCAV)
         self.EBeam = Detector(self.args.EBeam)
         self.GMD   = Detector(self.args.GMD)
         self.ENV = self.ds.env().configStore()
 
 ###############################################################################
 
-    def ArrInit(self,mblen):
-        # Magnetic bottle array 3D: time,amplitude;index of event; length of MB wf
-        self.mbArr = np.zeros((2,self.args.nsave,mblen))
+    def ArrInit(self,numcounts):
+        # Scienta Hemispherical analyser array 3D: energy,angle;index of event; length of counts number
+        self.shArr = np.zeros((2,self.args.nsave,numcounts))
         # Gas detector array (6 ebeam EL3 values)
         self.gmdArr   = np.zeros((self.args.nsave,6))
         # Acq parameters: offset and fullscale for both channels low gain: 2, high gain 1
@@ -76,7 +78,7 @@ class XTCExporter(object):
         #hits for peak finding
         self.hits  = [[],[]]
         
-        self.mbArr[:,:,:] = np.nan
+        self.shArr[:,:,:] = np.nan
         self.gmdArr[:]    = np.nan
         self.ebeamArr[:,:]  = np.nan
         self.envArr[:,:] = np.nan
@@ -87,18 +89,24 @@ class XTCExporter(object):
 ###############################################################################
         
     def getevtdata(self,evt):
-        if not hasattr(self,'mbtime'):
-            mbtime = self.MBES.wftime(evt)
-            if mbtime is None: return
+
+	# Call the preprocessing modules here
+
+        if not hasattr(self,'shtime'):
+            shtime = self.SHES.wftime(evt)
+            if shtime is None: return
                 
             self.ArrInit(len(mbtime[0,:]))
-            self.mbtime = mbtime[0,:]
+            self.shtime = mbtime[0,:]
             
-        # Get the signal data
+        # Get the hemisperical analyser signal data
         
-        mbvolt = self.MBES.waveform(evt)
-        if mbvolt is None: return
+        shvolt = self.SHES.waveform(evt)
+        if shvolt is None: return
             
+	# Get the Xray spectrometer analyser data
+	
+	
         
         # Get the environnement data 
         
