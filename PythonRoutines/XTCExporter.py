@@ -48,7 +48,7 @@ class XTCExporter(object):
                 
     def DetInit(self):
         self.ds = DataSource(self.args.exprun + \
-                             ':smd:dir=/reg/d/ffb/amo/amoj1516/xtc:live')
+                             ':smd:dir=/reg/d/psdm/amo/amolr2516/xtc:live')
         
 #        XTCAVRetrieval = ShotToShotCharacterization()
 #        XTCAVRetrieval.SetEnv(self.ds.env())
@@ -63,9 +63,16 @@ class XTCExporter(object):
 
 ###############################################################################
 
-    def ArrInit(self,numcounts):
-        # Scienta Hemispherical analyser array 3D: energy,angle;index of event; length of counts number
-        self.shArr = np.zeros((2,self.args.nsave,numcounts))
+    def ArrInit(self,shlength,uxslength):
+
+	# Scienta Hemispherical array 2D: Energy projection; index of event
+	self.shProjArr = np.zeros((shlength,self.args.nsave))
+	
+	# XRay spectro array 2D principal components: PE1,DE1,A1,PE2,DE2,A2 ; index of event
+	self.uxsPCArr = np.zeros((6,self.args.nsave))
+	# Xray spectro array 2D: Energy projection; index of event
+	self.uxsProjArr = np.zeros((uxslength,self.args.nsave))
+	
         # Gas detector array (6 ebeam EL3 values)
         self.gmdArr   = np.zeros((self.args.nsave,6))
         # Acq parameters: offset and fullscale for both channels low gain: 2, high gain 1
@@ -75,10 +82,14 @@ class XTCExporter(object):
         # Time stamp array         
         self.TimeSt = np.zeros((self.args.nsave,))
         
-        #hits for peak finding
+        #hits for blob finding 
         self.hits  = [[],[]]
         
-        self.shArr[:,:,:] = np.nan
+        
+	self.shProjArr[:,:,:] = np.nan
+	self.uxsProjArr[:,:] = np.nan
+	self.uxsPCArr[:,:] = np.nan
+
         self.gmdArr[:]    = np.nan
         self.ebeamArr[:,:]  = np.nan
         self.envArr[:,:] = np.nan
@@ -183,12 +194,12 @@ class XTCExporter(object):
                 self.T = self.mbtime
                 
             runnumber = int(self.args.exprun[17:])
-            filename = 'amoj1516_r' + str(runnumber).zfill(4) + '_' + \
+            filename = 'amolr2516_r' + str(runnumber).zfill(4) + '_' + \
                         str(rank).zfill(3) + '_' + str(self.filenum).zfill(3)
                      
-            directory_n='/reg/d/psdm/AMO/amoj1516/ftc/npzfiles/' + 'run' + \
+            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
-            directory_m='/reg/d/psdm/AMO/amoj1516/ftc/matfiles/' + 'run' + \
+            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
             if not os.path.exists(directory_n):
                 os.makedirs(directory_n)
@@ -260,8 +271,6 @@ class XTCExporter(object):
                 self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:].reshape(-1,var).sum(1)/var
                 
         self.T=self.mbtime.reshape(-1,var).sum(1)/var
-                        
-            
         
         
 
