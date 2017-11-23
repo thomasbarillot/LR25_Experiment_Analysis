@@ -55,11 +55,12 @@ class XTCExporter(object):
 
         self.SHES  = Detector(self.args.SHES)
         self.UXS = Detector(self.args.UXS)
-	
+	self.ITOF = Detector(self.args.ITOF)	
 	self.XTCAV = Detector(self.args.XTCAV)
         self.EBeam = Detector(self.args.EBeam)
         self.GMD   = Detector(self.args.GMD)
         self.ENV = self.ds.env().configStore()
+	self.EPICS = EpicsDetector(self.args.EPCIS,self.ds)
 
 ###############################################################################
 
@@ -73,27 +74,36 @@ class XTCExporter(object):
 	# Xray spectro array 2D: Energy projection; index of event
 	self.uxsProjArr = np.zeros((uxslength,self.args.nsave))
 	
+	# micro tof: ion yield, index of event 
+	self.itofArr = np.zeros((self.args.nsave))
+
         # Gas detector array (6 ebeam EL3 values)
         self.gmdArr   = np.zeros((self.args.nsave,6))
         # Acq parameters: offset and fullscale for both channels low gain: 2, high gain 1
         self.envArr   = np.zeros((1,5))
         #
         self.ebeamArr = np.zeros((self.args.nsave,21))
+
+	# Sample pressure array
+	self.sPressArr = np.zeros((self.args.nsave))
+	
         # Time stamp array         
         self.TimeSt = np.zeros((self.args.nsave,))
         
-        #hits for blob finding 
-        self.hits  = [[],[]]
+        #hits for blob finding: posX,posY, index of event
+        self.hits  = [[],[],[]]
         
         
 	self.shProjArr[:,:,:] = np.nan
 	self.uxsProjArr[:,:] = np.nan
 	self.uxsPCArr[:,:] = np.nan
+	self.itofArr[:] = np.nan
 
-        self.gmdArr[:]    = np.nan
+        self.gmdArr[:,:]    = np.nan
         self.ebeamArr[:,:]  = np.nan
         self.envArr[:,:] = np.nan
         self.TimeSt[:]    = np.nan
+	self.sPressArr[:] = np.nan
         self.nsave        = 0
 
 
@@ -103,20 +113,19 @@ class XTCExporter(object):
 
 	# Call the preprocessing modules here
 
+	# Initialize the arrays
         if not hasattr(self,'shtime'):
-            shtime = self.SHES.wftime(evt)
-            if shtime is None: return
+            shtenergy = self.SHES.raw(evt).shape[0]
+            if shenergy is None: return
                 
-            self.ArrInit(len(mbtime[0,:]))
-            self.shtime = mbtime[0,:]
+            self.ArrInit(self.SHES.raw(evt).shape[0],self.UXS.raw(evt).shape[0])
+            self.shenergy = mbtime[0,:]
             
+	
+
         # Get the hemisperical analyser signal data
-        
-        shvolt = self.SHES.waveform(evt)
-        if shvolt is None: return
             
 	# Get the Xray spectrometer analyser data
-	
 	
         
         # Get the environnement data 
@@ -124,6 +133,8 @@ class XTCExporter(object):
         envdata=self.ENV.get(psana.Acqiris.Config)
         
         gmddata  = self.GMD.get(evt)
+
+	samplepressuredata = self.EPICS.get(evt)
     
         # Get the Ebeam data
           
@@ -149,11 +160,6 @@ class XTCExporter(object):
         #get the event Id and timestamp
         self.TimeSt[self.nsave] = evttime.time()
         
-        self.mbArr[:,self.nsave,:] = mbvolt[0:2,:]
-        
-        self.Peakfinder(0)
-        self.Peakfinder(1)
-        
         
         if gmddata is not None:
             #upstream
@@ -175,7 +181,8 @@ class XTCExporter(object):
             self.envArr[self.nsave,3] = envdata.vert()[2].fullScale()
             self.envArr[self.nsave,4] = envdata.horiz().sampInterval()
             
-            
+	if samplepressuredata is not None:
+	    self.sPressArr[self.nsave] = samplepressuredata
 
         self.nsave += 1
 
@@ -183,16 +190,17 @@ class XTCExporter(object):
             
     def save(self):
         if self.args.save == True:
-            if self.args.rebin == True:
-                self.rebin(0)
-                self.MB1 = self.MBbin
-                self.rebin(1)
-                self.MB2 = self.MBbin
-            else:
-                self.MB1 = self.mbArr[0,:,:]
-                self.MB2 = self.mbArr[1,:,:]                                
-                self.T = self.mbtime
-                
+            #if self.args.rebin == True:
+            #    self.rebin(0)
+            #    self.MB1 = self.MBbin
+            #    self.rebin(1)
+            #    self.MB2 = self.MBbin
+            #else:
+            #    self.MB1 = self.mbArr[0,:,:]
+            #    self.MB2 = self.mbArr[1,:,:]                                
+            #    self.T = self.mbtime
+             
+		    
             runnumber = int(self.args.exprun[17:])
             filename = 'amolr2516_r' + str(runnumber).zfill(4) + '_' + \
                         str(rank).zfill(3) + '_' + str(self.filenum).zfill(3)
@@ -210,15 +218,15 @@ class XTCExporter(object):
                 print 'rank 1 writing file...'
                 
             data={'EBeamParameters':self.ebeamArr,
-                                       'MBchannel1':self.MB1[0:self.nsave,:].astype(np.float16), \
-                                       'MBchannel2':self.MB2[0:self.nsave,:].astype(np.float16), \
-                                       #'MBChan2':self.mbArr[1], \
-                                       'GasDetector':self.gmdArr[0:self.nsave,:], \
+                                       'SHESHits':self.MB1[:,:,0:self.nsave].astype(np.float16), \
+                                       'SHESwf':self.shProjArr[:,0:self.nsave].astype(np.float16), \
+				       'UXSpc':self.,\
+				       'UXSwf':self.,\
+                                       'ITOF':self.,\
+				       'Pressure':,\
+				       'GasDetector':self.gmdArr[0:self.nsave,:], \
                                        'EnvVar':self.envArr[0:self.nsave,:], \
-                                       'T':self.T, \
                                        'TimeStamp':self.TimeSt, \
-                                       'HitsChan1':self.hits[0], \
-                                       'HitsChan2':self.hits[1], \
                                        'Elmode':self.args.Elmode}
             scipy.io.savemat(directory_m+filename+'.mat',data)
                                        
@@ -232,45 +240,17 @@ class XTCExporter(object):
 
 ###############################################################################
         
-    def Peakfinder(self,chan):
-        if not hasattr(self,'hits'):
-            self.hits = [[],[]]
-            
-        if not hasattr(self,'mbArr'):
-            return
-            
-        hitlist  = pypsalg.find_edges(self.mbArr[chan,self.nsave,:], \
-                                         self.args.cfdBaseline, \
-                                         self.args.cfdThreshold[chan], \
-                                         self.args.cfdFraction, \
-                                         self.args.cfdDeadtime, \
-                                         True)
-        if hitlist.shape[0]!=0:
-            hittimes = np.zeros((hitlist.shape[0],))
-            for k in np.arange(len(hittimes)):
-                hittimes[k] = self.mbtime[hitlist[k,1]]
-                
-            self.hits[chan].append(hittimes)
-        else:
-            #self.hits[chan].append(np.nan)
-            hittimes = np.zeros((hitlist.shape[0],))
-            self.hits[chan].append(hittimes)
-            
-###############################################################################
-            
-    def rebin(self,chan):
-        self.MBbin = np.zeros((self.args.nsave,self.args.bins),dtype=np.float16)
-        self.MBbin[:,:] = np.nan
+        #self.MBbin[:,:] = np.nan
 
-        var=len(self.mbtime)/self.args.bins
-        for i in np.arange(self.args.nsave):
+        #var=len(self.mbtime)/self.args.bins
+        #for i in np.arange(self.args.nsave):
             #self.mbArr[chan,i,:]=self.mbArr[chan,i,:]-np.mean(self.mbArr[chan,i,:700])
-            if self.args.crop[1]!=0:
-                self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:-self.args.crop[1]].reshape(-1,var).sum(1)/var
-            else:
-                self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:].reshape(-1,var).sum(1)/var
-                
-        self.T=self.mbtime.reshape(-1,var).sum(1)/var
+        #    if self.args.crop[1]!=0:
+        #        self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:-self.args.crop[1]].reshape(-1,var).sum(1)/var
+        #    else:
+        #        self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:].reshape(-1,var).sum(1)/var
+        #        
+        #self.T=self.mbtime.reshape(-1,var).sum(1)/var
         
         
 
