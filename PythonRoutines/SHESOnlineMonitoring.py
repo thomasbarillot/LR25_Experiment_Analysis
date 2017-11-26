@@ -10,7 +10,7 @@ from collections import deque
 # Imports for plotting
 from psmon.plots import XYPlot,MultiPlot,Image
 from psmon import publish
-publish.local=True #TODO change if don't want to publish local
+#publish.local=True # changeme
 
 # Set parameters
 ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
@@ -32,16 +32,18 @@ if rem!=0:
     plot_every, set history_len to '+str(history_len)
 
 processor=SHESPreProcessor(threshold=threshold) #initialise processor
+_,j_len,i_len=processor.pers_trans_params #for specified x_length/y_length in SHESPreProcessor,
+#PerspectiveTransform() returns array of shape (y_length,x_length)
 
 image_sum_buff=deque(maxlen=1+history_len/plot_every)  # These keep the most recent one NOT to
 x_proj_sum_buff=deque(maxlen=1+history_len/plot_every) # be plotted so that it can be taken away
                                                        # from the rolling sum
-image_buff=np.zeros((plot_every, 1024, 1024)) # this refreshes
-x_proj_buff=np.zeros((plot_every, 1024)) # this refreshes
+image_buff=np.zeros((plot_every, i_len, j_len)) # this refreshes
+x_proj_buff=np.zeros((plot_every, j_len)) # this refreshes
 counts_buff=deque(maxlen=history_len_counts) # this doesn't refresh
  
-image_sum=np.zeros((1024, 1024))
-x_proj_sum=np.zeros(1024)
+image_sum=np.zeros((i_len, j_len))
+x_proj_sum=np.zeros(j_len)
 
 rolling_count=0
 for nevt, evt in enumerate(ds.events()):
@@ -87,16 +89,16 @@ for nevt, evt in enumerate(ds.events()):
                             str(len(counts_buff))+' shots', np.arange(len(counts_buff)), \
                             np.array(counts_buff))
 
-        multi=MultiPlot(0, 'All monitoring', ncols=2)
+        multi=MultiPlot(0, 'Multi', ncols=2)
 
         multi.add(plotxproj)
         multi.add(plotcumimage)
         multi.add(plotcounts)
         
         # Publish plots
-        publish.send('All plots', multi)
+        publish.send('SHESOnline', multi)
         
         # Reset
         rolling_count=0
-        image_buff=np.zeros((plot_every, 1024, 1024))
-        x_proj_buff=np.zeros((plot_every, 1024))
+        image_buff=np.zeros((plot_every, i_len, j_len))
+        x_proj_buff=np.zeros((plot_every, j_len))

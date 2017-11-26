@@ -21,9 +21,9 @@ count_conv=10332.3985644 # from first 200 in "exp=AMO/amon0816:run=228:smd:dir=/
 
 # Define perspective transform
 pts1 = np.float32([[96,248],[935,193],[96,762],[935,785]])
-xLength = 839
-yLength = 591
-pts2 = np.float32([[0,0],[xLength,0],[0,yLength],[xLength,yLength]])
+x_len_param = 839
+y_len_param = 591
+pts2 = np.float32([[0,0],[x_len_param,0],[0,y_len_param],[x_len_param,y_len_param]])
 M = cv2.getPerspectiveTransform(pts1,pts2)
 
 # Potentially require parameters for polynomial fitting
@@ -46,7 +46,7 @@ class SHESPreProcessor(object):
         self.opal_det=Detector(det_name) # N.B. requires a
         # psana.DataSource instance to exist
         self.count_conv=count_conv
-        self.pers_trans_params=M, xLength, yLength #perspective transform parameters
+        self.pers_trans_params=M, x_len_param, y_len_param #perspective transform parameters
         self.poly_fit_params=poly_fit_params
 
     def GetRawImg(self, event):
@@ -68,9 +68,12 @@ class SHESPreProcessor(object):
         #I think not
         
     def PerspectiveTransform(self, opal_image):
-        #M, xlen, ylen = self.pers_trans_params
-        #return cv2.warpPerspective(opal_image, M, (xlen, ylen))
-        return opal_image #TODO comment this bad boy in when ready    
+        M, x_len_param, y_len_param = self.pers_trans_params
+        return cv2.warpPerspective(opal_image, M, (x_len_param, y_len_param))
+        # this returns an nd.array of shape (y_len_param, x_len_param), I don't
+        # understand why #TODO understand! My best guess is that inside the cv2.warpPerspective
+        #/cv2.getPerspectiveTransform functions, row becomes x-axis and col becomes y-axis
+        #return opal_image #comment this bad boy in when ready    
 
     def PolyFit(self, opal_image):
         return opal_image #TODO
