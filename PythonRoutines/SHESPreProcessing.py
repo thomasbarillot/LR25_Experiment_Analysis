@@ -14,32 +14,40 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 
 # Define detector
 det_name='OPAL1' #TODO may need changing across beamtimes
-countconv=10332.3985644 # from first 200 in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10332.3985644 & stddev=1500.66170894
 
-# Again may be needed for perspective transform, don't know what is going on yet
-#pts1 = np.float32([[96,248],[935,193],[96,762],[935,785]])
-#xLength = 839
-#yLength = 591
-#pts2 = np.float32([[0,0],[xLength,0],[0,yLength],[xLength,yLength]])
-#M = cv2.getPerspectiveTransform(pts1,pts2)
-#TODO figure out what the transforms are that we need from Andre
+# Define estimated conversion rate from integrated (after thresholding) signal
+# to electron counts
+count_conv=10332.3985644 # from first 200 in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10332.3985644 & stddev=1500.66170894
+
+# Define perspective transform
+pts1 = np.float32([[96,248],[935,193],[96,762],[935,785]])
+xLength = 839
+yLength = 591
+pts2 = np.float32([[0,0],[xLength,0],[0,yLength],[xLength,yLength]])
+M = cv2.getPerspectiveTransform(pts1,pts2)
+
+# Potentially require parameters for polynomial fitting
+poly_fit_params=None
+
+#TODO DiscardBorder before or after perspective transform?
 #TODO what do we do for sparking?
 
 #%%
 
 class SHESPreProcessor(object):
 
-    def __init__(self, threshold=500., discard_border=1, \
-                 poly_fit_params=None, \
-                 perspective_transform=None):
+    def __init__(self, threshold=500., discard_border=1):
+
         self.threshold=threshold
         self.discard_border=discard_border
-        self.poly_fit_params=poly_fit_params
-        self.perspective_transform=perspective_transform
-        # And then this is hardcoded in already
-        self.opal_det=Detector(det_name) # requires a
+
+        # And then hardcoded parameters. These are attributes of each
+        # instance in case they ever want to be changed
+        self.opal_det=Detector(det_name) # N.B. requires a
         # psana.DataSource instance to exist
-        self.count_conv=10332.3985644
+        self.count_conv=count_conv
+        self.pers_trans_params=M, xLength, yLength #perspective transform parameters
+        self.poly_fit_params=poly_fit_params
 
     def GetRawImg(self, event):
         return self.opal_det.raw(event)
@@ -60,8 +68,10 @@ class SHESPreProcessor(object):
         #I think not
         
     def PerspectiveTransform(self, opal_image):
-        return opal_image #TODO
-    
+        #M, xlen, ylen = self.pers_trans_params
+        #return cv2.warpPerspective(opal_image, M, (xlen, ylen))
+        return opal_image #TODO comment this bad boy in when ready    
+
     def PolyFit(self, opal_image):
         return opal_image #TODO
  
@@ -115,11 +125,11 @@ class SHESPreProcessor(object):
         opal_image=np.copy(opal_image)# makes a copy because
         # Detector.raw(evt) returns a read-only array for
         # obvious reasons
-        opal_image=self.PolyFit(opal_image) # Thomas thinks the polynominal 
-        # fit will take care of the perspective transform
+        opal_image=self.PerspectiveTransform(opal_image)
         opal_image=self.DiscardBorder(opal_image)
-        xs, ys=zip(*self.FindComs(opal_image)[0])
-        x_proj=self.XProj(self.Threshold(opal_image))  
+
+        xs, ys=zip(*self.FindComs(opal_image)[0]) # FindComs() doesn't need thresholded array
+        x_proj=self.XProj(self.Threshold(opal_image)) # So threshold here  
 
         return list(xs), list(ys), x_proj
 
@@ -131,8 +141,7 @@ class SHESPreProcessor(object):
         opal_image=np.copy(opal_image)# makes a copy because
         # Detector.raw(evt) returns a read-only array for
         # obvious reasons
-        opal_image=self.PolyFit(opal_image) # Thomas thinks the polynominal
-        # fit will take care of the perspective transform
+        opal_image=self.PerspectiveTransform(opal_image)
         opal_image=self.Threshold(self.DiscardBorder(opal_image))
 
         x_proj=self.XProj(opal_image)

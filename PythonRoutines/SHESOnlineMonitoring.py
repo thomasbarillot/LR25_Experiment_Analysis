@@ -88,6 +88,7 @@ for nevt, evt in enumerate(ds.events()):
                             np.array(counts_buff))
 
         multi=MultiPlot(0, 'All monitoring', ncols=2)
+
         multi.add(plotxproj)
         multi.add(plotcumimage)
         multi.add(plotcounts)
