@@ -7,6 +7,11 @@ from xtcav.ShotToShotCharacterization import *
 import pypsalg
 import os
 
+#### Analysis modules
+
+
+#### Parallel processing
+
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -50,8 +55,8 @@ class XTCExporter(object):
         self.ds = DataSource(self.args.exprun + \
                              ':smd:dir=/reg/d/psdm/amo/amolr2516/xtc:live')
         
-#        XTCAVRetrieval = ShotToShotCharacterization()
-#        XTCAVRetrieval.SetEnv(self.ds.env())
+        XTCAVRetrieval = ShotToShotCharacterization()
+        XTCAVRetrieval.SetEnv(self.ds.env())
 
         self.SHES  = Detector(self.args.SHES)
         self.UXS = Detector(self.args.UXS)
@@ -90,8 +95,8 @@ class XTCExporter(object):
         # Time stamp array         
         self.TimeSt = np.zeros((self.args.nsave,))
         
-        #hits for blob finding: posX,posY, index of event
-        self.hits  = [[],[],[]]
+        # hits for blob finding 
+        self.ehits  = [[],[],[]]
         
         
 	self.shProjArr[:,:,:] = np.nan
@@ -120,14 +125,21 @@ class XTCExporter(object):
                 
             self.ArrInit(self.SHES.raw(evt).shape[0],self.UXS.raw(evt).shape[0])
             self.shenergy = mbtime[0,:]
-            
-	
 
         # Get the hemisperical analyser signal data
+	self.ehits[0].append() #Xpos
+        self.ehits[1].append() #Ypos
+	self.ehits[2].append() #evt index
             
 	# Get the Xray spectrometer analyser data
 	
+	# Get the ITOF data
         
+	itofdata = self.ITOF.waveform(evt)
+        if itofdata is not None:
+            itofyield = np.sum(itofdata)
+            itofArr[self.nsave] = itofyield
+ 	
         # Get the environnement data 
         
         envdata=self.ENV.get(psana.Acqiris.Config)
@@ -160,7 +172,6 @@ class XTCExporter(object):
         #get the event Id and timestamp
         self.TimeSt[self.nsave] = evttime.time()
         
-        
         if gmddata is not None:
             #upstream
             self.gmdArr[self.nsave,0] = gmddata.f_11_ENRC()
@@ -190,21 +201,19 @@ class XTCExporter(object):
             
     def save(self):
         if self.args.save == True:
-            #if self.args.rebin == True:
-            #    self.rebin(0)
-            #    self.MB1 = self.MBbin
-            #    self.rebin(1)
-            #    self.MB2 = self.MBbin
-            #else:
-            #    self.MB1 = self.mbArr[0,:,:]
-            #    self.MB2 = self.mbArr[1,:,:]                                
-            #    self.T = self.mbtime
              
-		    
             runnumber = int(self.args.exprun[17:])
             filename = 'amolr2516_r' + str(runnumber).zfill(4) + '_' + \
                         str(rank).zfill(3) + '_' + str(self.filenum).zfill(3)
                      
+            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
+                        str(runnumber).zfill(4) + '/'
+            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
+                        str(runnumber).zfill(4) + '/'
+            if not os.path.exists(directory_n):
+                os.makedirs(directory_n)
+            if not os.path.exists(directory_m):
+                os.makedirs(directory_m)
             directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
             directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
@@ -218,14 +227,15 @@ class XTCExporter(object):
                 print 'rank 1 writing file...'
                 
             data={'EBeamParameters':self.ebeamArr,
-                                       'SHESHits':self.MB1[:,:,0:self.nsave].astype(np.float16), \
-                                       'SHESwf':self.shProjArr[:,0:self.nsave].astype(np.float16), \
-				       'UXSpc':self.,\
-				       'UXSwf':self.,\
-                                       'ITOF':self.,\
+                                       'SHESHits':self.[0:self.nsave,:].astype(np.float16), \
+                                       'SHESwf':self.shProjArr[0:self.nsave,:].astype(np.float16), \
+				       'UXSpc':,\
+				       'UXSwf':,\
+                                       'ITOF':,\
 				       'Pressure':,\
 				       'GasDetector':self.gmdArr[0:self.nsave,:], \
                                        'EnvVar':self.envArr[0:self.nsave,:], \
+                                       'T':self.T, \
                                        'TimeStamp':self.TimeSt, \
                                        'Elmode':self.args.Elmode}
             scipy.io.savemat(directory_m+filename+'.mat',data)
@@ -237,22 +247,6 @@ class XTCExporter(object):
             self.filenum += 1
             
         self.ArrInit(len(self.mbtime))
-
-###############################################################################
-        
-        #self.MBbin[:,:] = np.nan
-
-        #var=len(self.mbtime)/self.args.bins
-        #for i in np.arange(self.args.nsave):
-            #self.mbArr[chan,i,:]=self.mbArr[chan,i,:]-np.mean(self.mbArr[chan,i,:700])
-        #    if self.args.crop[1]!=0:
-        #        self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:-self.args.crop[1]].reshape(-1,var).sum(1)/var
-        #    else:
-        #        self.MBbin[i,:]=self.mbArr[chan,i,self.args.crop[0]:].reshape(-1,var).sum(1)/var
-        #        
-        #self.T=self.mbtime.reshape(-1,var).sum(1)/var
-        
-        
 
 ###############################################################################        
             
