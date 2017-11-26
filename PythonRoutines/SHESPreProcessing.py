@@ -73,7 +73,6 @@ class SHESPreProcessor(object):
         # this returns an nd.array of shape (y_len_param, x_len_param), I don't
         # understand why #TODO understand! My best guess is that inside the cv2.warpPerspective
         #/cv2.getPerspectiveTransform functions, row becomes x-axis and col becomes y-axis
-        #return opal_image #comment this bad boy in when ready    
 
     def PolyFit(self, opal_image):
         return opal_image #TODO
