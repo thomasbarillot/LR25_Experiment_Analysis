@@ -17,7 +17,7 @@ det_name='OPAL1' #TODO may need changing across beamtimes
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
-count_conv=10332.3985644 # from first 200 in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10332.3985644 & stddev=1500.66170894
+count_conv=10952.237099 # from first 1831 in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10952.237099 & stddev=1487.85768968
 
 # Define perspective transform
 pts1 = np.float32([[96,248],[935,193],[96,762],[935,785]])
@@ -88,15 +88,16 @@ class SHESPreProcessor(object):
         binary = self.Binary(opal_image)
     
         labelled, num_labels = ndimage.label(binary)
-        centers = ndimage.measurements.center_of_mass(binary, 
-                                                  labelled,
-                                                  range(1,num_labels+1))
+        if num_labels==0:
+            return [(np.nan, np.nan)], np.zeros(opal_image.shape)
+        centers = ndimage.measurements.center_of_mass(binary, labelled, range(1,num_labels+1))
         return centers, labelled
 
     def FindBlobs(self, opal_image):
 
         centers, labelled = self.FindComs(opal_image)
-
+        if centers==[(np.nan, np.nan)]:
+           return [(np.nan, np.nan)], [(np.nan, np.nan)]
         widths = []
         for i in range(len(centers)):
         
@@ -106,7 +107,6 @@ class SHESPreProcessor(object):
         
             c_slice = labelled[:,int(c[1])]
             zy = np.where( np.abs(c_slice - np.roll(c_slice, 1)) == i+1 )[0]
-        
         
             if not (len(zx) == 2) or not (len(zy) == 2):
                 #print "WARNING: Peak algorithm confused about width of peak at", c
@@ -128,8 +128,8 @@ class SHESPreProcessor(object):
         # Detector.raw(evt) returns a read-only array for
         # obvious reasons
         opal_image=self.PerspectiveTransform(opal_image)
+     
         opal_image=self.DiscardBorder(opal_image)
-
         xs, ys=zip(*self.FindComs(opal_image)[0]) # FindComs() doesn't need thresholded array
         x_proj=self.XProj(self.Threshold(opal_image)) # So threshold here  
 
@@ -146,8 +146,8 @@ class SHESPreProcessor(object):
         opal_image=self.PerspectiveTransform(opal_image)
         opal_image=self.Threshold(self.DiscardBorder(opal_image))
 
+        count_estimate=opal_image.sum().sum()/float(self.count_conv)        
         x_proj=self.XProj(opal_image)
-        count_estimate=opal_image.sum().sum()/float(self.count_conv)
         
         return opal_image, x_proj, count_estimate
 

@@ -10,7 +10,7 @@ from collections import deque
 # Imports for plotting
 from psmon.plots import XYPlot,MultiPlot,Image
 from psmon import publish
-#publish.local=True # changeme
+publish.local=True # changeme
 
 # Set parameters
 ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
