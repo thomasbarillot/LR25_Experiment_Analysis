@@ -32,8 +32,8 @@ if rem!=0:
     plot_every, set history_len to '+str(history_len)
 
 processor=SHESPreProcessor(threshold=threshold) #initialise processor
-_,j_len,i_len=processor.pers_trans_params #for specified x_length/y_length in SHESPreProcessor,
-#PerspectiveTransform() returns array of shape (y_length,x_length)
+_,j_len,i_len=processor.pers_trans_params #for specified x_len_param/y_len_param in SHESPreProcessor,
+#PerspectiveTransform() returns array of shape (y_len_param,x_len_param)
 
 image_sum_buff=deque(maxlen=1+history_len/plot_every)  # These keep the most recent one NOT to
 x_proj_sum_buff=deque(maxlen=1+history_len/plot_every) # be plotted so that it can be taken away
