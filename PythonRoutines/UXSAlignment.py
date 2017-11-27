@@ -51,7 +51,7 @@ def CurvatureFinder(image, xmin=0, xmax=600, ymin=250, ymax=800, nslices=10):
         curv_y.append(y)
     return zip(curv_x, curv_y)
     
-def CreateXshifts(zippedxy):
+def CreateXshifts(zippedxy, order=2, centerline=512):
     """
     Fit the found curv_x and curv_y using polyfit
     """
@@ -66,10 +66,10 @@ def CreateXshifts(zippedxy):
         curv_x, curv_y = zip(*userin)
     # Now we got the gaussian center of the slices
     # Lets fit them using a polynomial
-    curv_poly = np.polyfit(curv_y, curv_x, 2) #2nd order
+    curv_poly = np.polyfit(curv_y, curv_x, order)
     # Find the center, then we will shift everything on the
     # The line will be straightened and placed on this line
-    center = np.polyval(curv_poly, 512)
+    center = np.polyval(curv_poly, centerline)
     xshifts = center-np.polyval(curv_poly, range(1024))
     # Make the shifts into integers so that they match the pixles
     xshifts = xshifts.astype(int)
