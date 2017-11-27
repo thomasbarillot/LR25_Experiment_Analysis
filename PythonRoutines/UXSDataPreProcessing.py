@@ -45,20 +45,20 @@ class UXSDataPreProcessing:
         self.energyscale = np.arange(0,1024)
 
 
-    #def FilterImage(self, sigma=1, order=0, threshold=100):
-    #    """
-    #    Gaussian filter and threshold for the image.
-    #    """
-    #    # Gaussian filter
-    #    self.image = scipy.ndimage.gaussian_filter(self.image, sigma=sigma, order=order)
-    #    
-    #    # Threshold
-    #    idx = self.image[:,:] < threshold
-    #    self.image[idx] = 0
-    #
-    #    # Remove border
-    #    ##self.image[0,:] = 0
-    #    ##self.image[:,0] = 0       
+    def FilterImage(self, sigma=1, order=0, threshold=100):
+        """
+        Gaussian filter and threshold for the image.
+        """
+        # Gaussian filter
+        self.image = scipy.ndimage.gaussian_filter(self.image, sigma=sigma, order=order)
+        
+        # Threshold
+        idx = self.image[:,:] < threshold
+        self.image[idx] = 0
+    
+        # Remove border
+        self.image[0,:] = 0
+        self.image[:,0] = 0       
 
     def AddFakeImageSignal(self, center=200, curvature=200):
         """
