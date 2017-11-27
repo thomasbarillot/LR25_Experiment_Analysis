@@ -187,4 +187,4 @@ class UXSDataPreProcessing:
         self.DefineRange([0,400])
         self.EstimateInitFitParam(12)
         self.FitToDoubleGaussian()
-        return self.fitresults
+        return self.fitresults,self.wf
