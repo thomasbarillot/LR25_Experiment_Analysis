@@ -3,7 +3,7 @@
 # bsub -q psanaq -n 2 -o %J.log -a mympi python mpi_driver.py exp=sxrh4315:run=174
 
 #from master import runmaster
-from XTCExporter import runclient
+from client import runclient
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -23,17 +23,20 @@ args = parser.parse_args()
 ###############################################################################
 # Variable input
 # Detectors:
-args.MBES   = 'ACQ1'#'Acq01'#'ACQ1'
+args.SHES   = 'OPAL3'
+args.UXS    = 'OPAL1'
+args.ITOF   = 'ACQ1'#'Acq01'#'ACQ1'
 args.GMD    = 'FEEGasDetEnergy'
 args.EBeam  = 'EBeam'
-#args.XTCAV  = 'xtcav'
+args.PRESS  = 'AMO:LMP:VG:21:PRESS'
+args.XTCAV  = 'xtcav'
 
 # GMD intensity threshold for shots to be considered for online plots:
 args.gmdThr = 0.1
 # Prefered gmd value for online plots:
 args.prefgmd = 0
 
-# Prefered MBES channel for online plots and raw traces:
+# Prefered  channel for online plots and raw traces of itof:
 args.prefch = 1
 
 # Save files:
@@ -43,14 +46,14 @@ args.nsave  = 2000
 # number of shots transfered for online plots:
 #args.nonline = 120
 
-# cfd parameters (both MBES channels):
+# cfd parameters (for itof):
 args.cfdBaseline  = 0
 args.cfdThreshold = [0.0075,0.02]
 args.cfdFraction  = 0.5
 args.cfdDeadtime  = 20
 
 # Rebinning of raw MBES traces to save to files:
-args.rebin = True
+args.rebin = False
 args.bins  = 2500
 args.crop =[0,0]
 
