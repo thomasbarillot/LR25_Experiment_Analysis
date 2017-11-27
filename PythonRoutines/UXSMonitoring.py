@@ -6,6 +6,8 @@ import os
 import time
 import thread
 
+import scipy.ndimage
+
 from psana import *
 import numpy as np
 import scipy.ndimage as filter
@@ -37,7 +39,7 @@ thread.start_new_thread(input_thread, ())
 ds = DataSource('shmem=psana.0:stop=no')
 print "Connected to shmem"
 # Testing with old data
-##ds = DataSource('exp=amof6215:run=200')
+##ds = DataSource('exp=amof6215:run=158')
 print DetNames()
 
 # UXS Camera
@@ -47,7 +49,7 @@ opal_det = Detector('OPAL1')
 ebeam = Detector('EBeam')
 
 # Accumulate frames in a circularbuffer
-numframes = 240
+numframes = 500
 
 # Keep numframes in a 3D matrix
 images = np.zeros((1024, 1024, numframes))
@@ -72,12 +74,14 @@ for nevt, evt in enumerate(ds.events()):
     opal_raw = opal_det.raw(evt)
     if opal_raw is None:
         print "Opal_raw was None"
+        pass
         continue
     
     # Reading the EBeam data, only for help while calibrating
     ebeamdata = ebeam.get(evt)
     if ebeamdata is None:
-        print "Ebeamdata was None"
+        #print "Ebeamdata was None"
+        pass
         photonenergy = 0
     if ebeamdata is not None:
         # TODO Shall we change to ebeamdata.ebeamL3Energy() ?
@@ -86,8 +90,8 @@ for nevt, evt in enumerate(ds.events()):
     metadata[frameidx] = "{}, PhEn: {}, {}".format(frameidx, photonenergy, str(evt.get(EventId)))
     
     #### Make sure orientation is correct as soon as we get first data
-    opal_raw = np.rot90(opal_raw.copy())
-    uxspre = UXSDataPreProcessing(opal_raw) ## TODO only copy here if needed
+    #opal_raw = np.rot90(opal_raw.copy())
+    uxspre = UXSDataPreProcessing(opal_raw.copy()) ## TODO only copy here if needed
     #uxspre.FilterImage() # TODO change filtering
     uxspre.CalculateProjection()
     # Copy here instead of standard analysis because it cuts the .wf
@@ -122,6 +126,7 @@ for nevt, evt in enumerate(ds.events()):
         start = time.time()
    
         # Do the standard analysis to get the double gaussian fit
+        """
         print fitresults
 
         # Lets also plot the fit!
@@ -131,7 +136,7 @@ for nevt, evt in enumerate(ds.events()):
             x = np.arange(0,1024)
             fity = UXSDataPreProcessing.DoubleGaussianFunction(x,a1,c1,w1,a2,c2,w2)
             print fity
-
+        """
         # Send single plots
         #plotimglive = Image(0, "UXS Monitor Live image {} {}Hz {}".format(frameidx, speed, metadata[frameidx]), uxspre.image)
         #plotimgacc = Image(0, "UXS Monitor Accumulated image {} {}Hz {}".format(frameidx, speed, metadata[frameidx]), summedimage)
@@ -148,19 +153,20 @@ for nevt, evt in enumerate(ds.events()):
         plotimgacc = Image(0, "Acc", accimage)
         plotxylive = XYPlot(0, "Live", energyscale, spectrum)
         plotxyacc = XYPlot(0, "Acc", energyscale, accspectrum)
-        plotxyfit = XYPlot(0, "Fit", energyscale, fity)
+        ###plotxyfit = XYPlot(0, "Fit", energyscale, fity)
 
         multi = MultiPlot(0, "UXSMonitor {} Hz {}".format(speed, metadata[frameidx]), ncols=2)
         multi.add(plotimglive)
         multi.add(plotimgacc)
         multi.add(plotxylive)
         multi.add(plotxyacc)
-        multi.add(plotxyfit)
+        ###multi.add(plotxyfit)
         publish.send("UXSMonitor", multi)
 
         # Count rate evolution over the frames.
         #counts = np.sum(images, axis=(0,1))
         #counts = np.roll(counts, -frameidx)
+        #counts = scipy.ndimage.gaussian_filter1d(counts,1)
         #plotxy = XYPlot(0, "UXS Counts {}".format(str(evt.get(EventId))), range(numframes), counts)
         #publish.send("UXSMonitorCounts", plotxy)
  
