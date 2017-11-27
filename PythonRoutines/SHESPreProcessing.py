@@ -20,17 +20,23 @@ det_name='OPAL1' #TODO may need changing across beamtimes
 count_conv=10765.3295101 # from all in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10765.3295101 & stddev=1503.99298626
 
 # Define perspective transform
-pts1 = np.float32([[96,248],[935,193],[96,762],[935,785]])
-x_len_param = 839
-y_len_param = 591
+pts1  = np.float32([[131,212],[845,162],[131,701],[845,750]])
+x_len_param = 714
+y_len_param = 489
 pts2 = np.float32([[0,0],[x_len_param,0],[0,y_len_param],[x_len_param,y_len_param]])
 M = cv2.getPerspectiveTransform(pts1,pts2)
+# these are updated from Andre's numbers, taken 20171127
+
+# For defining circles to check for arcing, and arcing threshold
+innerR, outerR = 460, 540
+xc, yc = 500, 460
+
+arcThresh=3.2e6 #change me
 
 # Potentially require parameters for polynomial fitting
 poly_fit_params=None
 
 #TODO DiscardBorder before or after perspective transform?
-#TODO what do we do for sparking?
 
 #%%
 
@@ -48,10 +54,21 @@ class SHESPreProcessor(object):
         self.count_conv=count_conv
         self.pers_trans_params=M, x_len_param, y_len_param #perspective transform parameters
         self.poly_fit_params=poly_fit_params
+        self.arcThresh=arcThresh 
+        self.arcMask=makeCircles((innerR, outerR), (xc, yc))
+        
+    def ArcCheck(self, opal_image):
+        arc=np.sum(opal_image*self.arcMask)>self.arcThresh
+        return arc
 
     def GetRawImg(self, event):
-        return self.opal_det.raw(event)
-        
+        raw_img=self.opal_det.raw(event)
+        if raw_img is None:
+            return raw_img
+        return np.rot90(np.copy(raw_img),-1) #rotation added 20171127, needed for LR25 beamtime 
+        # makes a copy because Detector.raw(evt) returns a read-only array for
+        # obvious reasons
+
     def DiscardBorder(self, opal_image):
         
         opal_image_cp=np.copy(opal_image)
@@ -124,9 +141,6 @@ class SHESPreProcessor(object):
         opal_image=self.GetRawImg(event)
         if opal_image is None:
             return np.nan, np.nan, np.nan
-        opal_image=np.copy(opal_image)# makes a copy because
-        # Detector.raw(evt) returns a read-only array for
-        # obvious reasons
         opal_image=self.PerspectiveTransform(opal_image)
      
         opal_image=self.DiscardBorder(opal_image)
@@ -135,14 +149,12 @@ class SHESPreProcessor(object):
 
         return list(xs), list(ys), x_proj
 
-    def OnlineProcess(self, event):  
+    def OnlineProcess(self, event);
+        #TODO include suitable behaviour (give warning) if the MCP is arcing
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
             return None, None, None # returns NoneType
-        opal_image=np.copy(opal_image)# makes a copy because
-        # Detector.raw(evt) returns a read-only array for
-        # obvious reasons
         opal_image=self.PerspectiveTransform(opal_image)
         opal_image=self.Threshold(self.DiscardBorder(opal_image))
 
@@ -151,7 +163,17 @@ class SHESPreProcessor(object):
         
         return opal_image, x_proj, count_estimate
 
+#%% some functions
+def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
+    'Function adapted from Andre to define mask for arcing test'
+    arcMask = np.zeros((1024, 1024), dtype=np.double) # arcing mask
 
-
-
-
+    for xx in range(1024):
+        for yy in range(1024):
+            rad=(xx-xc)**2+(yy-yc)**2
+            if rad >= innerR*innerR and rad <= outerR*outerR: # greater than
+                # or equal to condition should exactly recover performance for 
+                # Andre's previous version
+                arcMask[xx, yy]=1
+            
+    return arcMask
