@@ -17,7 +17,7 @@ det_name='OPAL1' #TODO may need changing across beamtimes
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
-count_conv=10952.237099 # from first 1831 in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10952.237099 & stddev=1487.85768968
+count_conv=10765.3295101 # from all in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10765.3295101 & stddev=1503.99298626
 
 # Define perspective transform
 pts1 = np.float32([[96,248],[935,193],[96,762],[935,785]])
