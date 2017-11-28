@@ -150,7 +150,7 @@ class SHESPreProcessor(object):
 
         return list(xs), list(ys), x_proj
 
-    def OnlineProcess(self, event);
+    def OnlineProcess(self, event):
         #TODO include suitable behaviour (give warning) if the MCP is arcing
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)

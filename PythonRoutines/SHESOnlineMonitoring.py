@@ -62,8 +62,11 @@ for nevt, evt in enumerate(ds.events()):
     if opal_image is None:
         print 'No SHES image, continuing to next event'
         continue
-
-    #if l3Proc.CentPE(
+    
+    cent_pe=l3Proc.CentPE(evt)
+    if not (cent_pe < max_cent_pe and cent_pe > min_cent_pe):
+        print '\'Central\' photon energy = '+str(np.round(cent_pe,2))+\
+        '-> outside specified range, skipping event'
 
     image_buff[rolling_count]=opal_image
     x_proj_buff[rolling_count]=x_proj
