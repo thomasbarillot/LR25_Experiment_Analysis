@@ -18,7 +18,7 @@ publish.local=True # changeme
 
 # Set parameters
 ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
-# change to access the shared memory
+# TODO change to access the shared memory
 threshold=500 # for thresholding of raw OPAL image
 
 # Define ('central') photon energy bandwidth for plotting projected spectrum
@@ -42,13 +42,14 @@ if rem!=0:
     print 'For efficient monitoring of acc sum require history_len divisible by \
     plot_every, set history_len to '+str(history_len)
 
-# Initialise L3 ebeam energy processor
-l3Proc=L3EnergyProcessor()
 # Initialise SHES processor
 processor=SHESPreProcessor(threshold=threshold)
 # Extract shape of arrays which SHES processor will return
 _,j_len,i_len=processor.pers_trans_params #for specified x_len_param/y_len_param in SHESPreProcessor,
 #PerspectiveTransform() returns array of shape (y_len_param,x_len_param)
+
+# Initialise L3 ebeam energy processor
+l3Proc=L3EnergyProcessor()
 
 image_sum_buff=deque(maxlen=1+history_len/plot_every)  # These keep the most recent one NOT to
 x_proj_sum_buff=deque(maxlen=1+history_len/plot_every) # be plotted so that it can be taken away
@@ -71,8 +72,11 @@ for nevt, evt in enumerate(ds.events()):
     if arced:
         print '***WARNING - ARC DETECTED!!!***'
 
+        cv2.putText(opal_image,'ARCING DETECTED!!!', 
+        (50,int(i_len/2)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0), 10)
+
         cv2.putText(image_sum,'ARCING DETECTED!!!', 
-        (50,520), cv2.FONT_HERSHEY_SIMPLEX, 3, (255,0,0), 10)
+        (50,int(i_len/2)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0), 10)
         
         #%% Now send plots (only counts updated from last time) and wait 2 seconds
         # Define plots
@@ -83,12 +87,14 @@ for nevt, evt in enumerate(ds.events()):
         plotcounts = XYPlot(0,'Estimated number of identified electron counts over past '+ \
                             str(len(counts_buff))+' shots', np.arange(len(counts_buff)), \
                             np.array(counts_buff))
+        plotshot = Image(0, 'Single shot', opal_image)
 
         multi=MultiPlot(0, 'Multi', ncols=2)
 
+        multi.add(plotcounts)
+        multi.add(plotshot)
         multi.add(plotxproj)
         multi.add(plotcumimage)
-        multi.add(plotcounts)
         
         # Publish plots
         publish.send('SHESOnline', multi)
@@ -138,12 +144,14 @@ for nevt, evt in enumerate(ds.events()):
         plotcounts = XYPlot(0,'Estimated number of identified electron counts over past '+ \
                             str(len(counts_buff))+' shots', np.arange(len(counts_buff)), \
                             np.array(counts_buff))
+        plotshot = Image(0, 'Single shot', opal_image)
 
         multi=MultiPlot(0, 'Multi', ncols=2)
 
+        multi.add(plotcounts)
+        multi.add(plotshot)
         multi.add(plotxproj)
         multi.add(plotcumimage)
-        multi.add(plotcounts)
         
         # Publish plots
         publish.send('SHESOnline', multi)

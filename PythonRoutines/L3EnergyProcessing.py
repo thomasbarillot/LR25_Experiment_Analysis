@@ -1,12 +1,13 @@
 """Processing for the L3 E-Beam parameters"""
+from psana import *
 
 ebeam_det_name = 'EBeam' #TODO check this
 gammaConvFact=13720. #TODO check this (from Alberto or Ago for eV calculation)
 peConvFact=8330. #TODO check this (from Alberto or Ago for eV calculation)
 
-def L3EnergyProcessor(object):
+class L3EnergyProcessor(object):
     
-    def __init_(self):
+    def __init__(self):
         #The following all hard-coded in
         self.gammaConvFact=float(gammaConvFact)
         self.peConvFact=float(peConvFact)

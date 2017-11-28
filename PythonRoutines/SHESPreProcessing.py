@@ -14,7 +14,7 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 
 #%% For SHES
 # Define detector
-det_name='OPAL3' #TODO is this right for the Scienta?
+det_name='OPAL1' #TODO is this right for the Scienta?
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
@@ -34,7 +34,7 @@ M = cv2.getPerspectiveTransform(pts1,pts2)
 innerR, outerR = 460, 540
 xc, yc = 500, 460
 
-arcThresh=3.2e6 #TODO change me
+arcThresh=10 #TODO change me
 
 # Potentially require parameters for polynomial fitting
 poly_fit_params=None
