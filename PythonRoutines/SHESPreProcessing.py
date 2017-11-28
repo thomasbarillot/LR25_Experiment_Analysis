@@ -12,6 +12,7 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 
 #%% These parameters hard-coded in
 
+#%% For SHES
 # Define detector
 det_name='OPAL1' #TODO may need changing across beamtimes
 
@@ -162,6 +163,11 @@ class SHESPreProcessor(object):
         x_proj=self.XProj(opal_image)
         
         return opal_image, x_proj, count_estimate
+
+def L3EnergyProcessor(object):
+    "This processes the L3 Energy ebeam parameter"
+    
+
 
 #%% some functions
 def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):

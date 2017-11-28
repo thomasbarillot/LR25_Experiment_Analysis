@@ -5,6 +5,8 @@ from psana import *
 import numpy as np
 # This class for processing SHES data
 from SHESPreProcessing import SHESPreProcessor
+# This for estimating photon energy from ebeam L3 energy
+from L3EnergyProcessing import L3EnergyProcessor
 # Import double-ended queue
 from collections import deque
 # Imports for plotting
@@ -15,8 +17,12 @@ publish.local=True # changeme
 # Set parameters
 ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
 # change to access the shared memory
-
 threshold=500 # for thresholding of raw OPAL image
+
+# Define ('central') photon energy bandwidth for plotting projected spectrum
+# Andre thought maybe 2 eV bandwidth
+min_cent_pe=0 # in eV
+max_cent_pe=9999 # in eV
 
 # Other parameters
 history_len=1000
@@ -31,7 +37,11 @@ if rem!=0:
     print 'For efficient monitoring of acc sum require history_len divisible by \
     plot_every, set history_len to '+str(history_len)
 
-processor=SHESPreProcessor(threshold=threshold) #initialise processor
+# Initialise L3 ebeam energy processor
+l3Proc=L3EnergyProcessor()
+# Initialise SHES processor
+processor=SHESPreProcessor(threshold=threshold)
+# Extract shape of arrays which SHES processor will return
 _,j_len,i_len=processor.pers_trans_params #for specified x_len_param/y_len_param in SHESPreProcessor,
 #PerspectiveTransform() returns array of shape (y_len_param,x_len_param)
 
@@ -52,6 +62,8 @@ for nevt, evt in enumerate(ds.events()):
     if opal_image is None:
         print 'No SHES image, continuing to next event'
         continue
+
+    #if l3Proc.CentPE(
 
     image_buff[rolling_count]=opal_image
     x_proj_buff[rolling_count]=x_proj
