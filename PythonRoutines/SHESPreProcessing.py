@@ -157,8 +157,7 @@ class SHESPreProcessor(object):
 
         return list(xs), list(ys), x_proj
 
-    def OnlineProcess(self, event, countratelims=0): #TODO start here
-        #TODO include suitable behaviour (give warning) if the MCP is arcing
+    def OnlineProcess(self, event):
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
@@ -166,14 +165,13 @@ class SHESPreProcessor(object):
 
         opal_image=self.Threshold(opal_image)
         arced=self.ArcCheck(opal_image) # Andre does arc checking on the
-        #thresholded but not perspective transformed image, sodo I
+        #thresholded but not perspective transformed image, so so do I
 
         opal_image=self.DiscardBorder(self.PerspectiveTransform(opal_image))
-
-        count_estimate=opal_image.sum().sum()/float(self.count_conv)        
+     
         x_proj=self.XProj(opal_image)
         
-        return opal_image, x_proj, count_estimate, arced
+        return opal_image, x_proj, arced
 
 #%% some functions
 def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):

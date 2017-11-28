@@ -30,6 +30,10 @@ threshold=500 # for thresholding of raw OPAL image
 min_cent_pe=0. # in eV
 max_cent_pe=9999. # in eV
 
+# Define lower and upper bounds of region of interest to monitor counts in
+region_int_lower=600.6 #in eV
+region_int_upper=700.14 #in eV
+
 # Define parameters for L3 photon energy histogram 
 minhistlim_L3PhotEnergy=500 #in eV
 maxhistlim_L3PhotEnergy=560 #in eV
@@ -53,7 +57,7 @@ arc_freeze_time=0.2 # how many seconds to freeze plotting after arcing warning?
 fee_gas_threshold=0.0 #in mJ
 
 #%% Define some functions
-def sendPlots(x_proj_sum, image_sum, counts_buff, opal_image, hist_L3PhotEnergy, \
+def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
               hist_FeeGasEnergy, nevt, numshotsforacc):
         # Define plots
         plotxproj = XYPlot(nevt,'Accumulated electron spectrum over past '+\
@@ -63,17 +67,22 @@ def sendPlots(x_proj_sum, image_sum, counts_buff, opal_image, hist_L3PhotEnergy,
         plotcounts = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
                             str(len(counts_buff))+' good shots', np.arange(len(counts_buff)), \
                             np.array(counts_buff))
+        plotcountsregint = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
+                            str(len(counts_buff_regint))+' good shots in region '+str(np.round(region_int_lower_act,2))+\
+                            ' eV - '+str(np.round(region_int_upper_act,2))+' eV (inclusive)', \
+                            np.arange(len(counts_buff_regint)), np.array(counts_buff_regint))
         plotshot = Image(nevt, 'Single shot', opal_image)
         plotL3PhotEnergy = Hist(nevt,'Histogram of L3 \'central\' photon energies (plotting for '+str(np.round(min_cent_pe, 2))+\
         '- '+str(np.round(min_cent_pe, 2))+')',  hist_L3PhotEnergy.edges[0], \
                            np.array(hist_L3PhotEnergy.values))
-        plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above'+str(np.round(fee_gas_threshold, 2))+\
+        plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above '+str(np.round(fee_gas_threshold, 2))+\
         ' only)',  hist_FeeGasEnergy.edges[0], np.array(hist_FeeGasEnergy.values))
         
         # Publish plots
         publish.send('AccElectronSpec', plotxproj)
         publish.send('OPALCameraAcc', plotcumimage)
         publish.send('ElectronCounts', plotcounts)
+        publish.send('ElectronCountsRegInt', plotcountsregint)
         publish.send('OPALCameraSingShot', plotshot)
         publish.send('L3Histogram', plotL3PhotEnergy)
         publish.send('FEEGasHistogram', plotFeeGasEnergy)
@@ -90,6 +99,16 @@ processor=SHESPreProcessor(threshold=threshold)
 # Extract shape of arrays which SHES processor will return
 _,j_len,i_len=processor.pers_trans_params #for specified x_len_param/y_len_param in SHESPreProcessor,
 #PerspectiveTransform() returns array of shape (y_len_param,x_len_param)
+count_conv=processor.count_conv
+calib_array=processor.calib_array
+# Find indices for monitoring region of interest
+region_int_idx_lower, region_int_idx_upper = \
+(np.abs(calib_array-region_int_lower)).argmin(), (np.abs(calib_array-region_int_upper)).argmin()
+
+region_int_lower_act, region_int_upper_act=calib_array[region_int_idx_lower], calib_array[region_int_idx_upper]
+# actual bounds for region being monitored
+print 'Monitoring counts in region between ' +str(np.round(region_int_lower_act,2))+\
+      ' eV - '+str(np.round(region_int_upper_act,2))+' eV'
 
 # Initialise L3 ebeam energy processor
 l3Proc=L3EnergyProcessor()
@@ -103,9 +122,12 @@ x_proj_sum_buff=deque(maxlen=1+history_len/plot_every) # be plotted so that it c
 image_buff=np.zeros((plot_every, i_len, j_len)) # this gets reset to 0
 x_proj_buff=np.zeros((plot_every, j_len)) # this gets reset to 0
 counts_buff=deque(maxlen=history_len_counts) # this doesn't get reset to 0
+counts_buff_regint=deque(maxlen=history_len_counts) # this doesn't get reset to 0. regint = region of 
+# interest, specified above
 
 hist_L3PhotEnergy = Histogram((numbins_L3PhotEnergy,minhistlim_L3PhotEnergy,maxhistlim_L3PhotEnergy))
 hist_FeeGasEnergy = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy))
+# hist_FeeGasEnergy_Counts = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
  
 image_sum=np.zeros((i_len, j_len))
 x_proj_sum=np.zeros(j_len)
@@ -126,7 +148,7 @@ for nevt, evt in enumerate(ds.events()):
         continue
 
     if cent_pe is None:
-        print 'No L3 e beam energy, continuing to next event'        
+        print 'No L3 e-beam energy, continuing to next event'        
         continue
     
     # If data exists, fill histograms
@@ -142,7 +164,7 @@ for nevt, evt in enumerate(ds.events()):
         print '\'Central\' photon energy = '+str(np.round(cent_pe,2))+\
         '-> outside specified range, skipping event'
 
-    opal_image, x_proj, count_estimate, arced=processor.OnlineProcess(evt)
+    opal_image, x_proj, arced=processor.OnlineProcess(evt)
 
     if opal_image is None:
         print 'No SHES image, continuing to next event'
@@ -158,7 +180,8 @@ for nevt, evt in enumerate(ds.events()):
         cv2.putText(image_sum_temp,'ARCING DETECTED!!!', 
         (50,int(i_len/2)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0), 10)
         
-        sendPlots(x_proj_sum, image_sum_temp, counts_buff, opal_image, hist_L3PhotEnergy, hist_FeeGasEnergy, nevt, numshotsforacc)
+        sendPlots(x_proj_sum, image_sum_temp, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, nevt, numshotsforacc)
         arcing_freeze=True
         arc_time_ref=time.time()
 
@@ -166,7 +189,16 @@ for nevt, evt in enumerate(ds.events()):
         
     image_buff[rolling_count]=opal_image
     x_proj_buff[rolling_count]=x_proj
+
+    count_estimate=x_proj.sum()/float(count_conv)   
     counts_buff.append(count_estimate)
+    
+    count_estimate_regint=x_proj[region_int_idx_lower:region_int_idx_upper+1].sum()/float(count_conv) 
+    # this ignores the fact that the MCP display doesn't fill the entire OPAL array, which 
+    # artificially decreases the integrated signal to count rate conversion factor (it divides the 
+    # integrated signal) compared to the case where the array you are integrating over is entirely filled
+    # by the MCP image, which is most likely the case for the region of interest 
+    counts_buff_regint.append(count_estimate_regint)
 
     rolling_count+=1 #increment here
 
@@ -199,7 +231,8 @@ for nevt, evt in enumerate(ds.events()):
             numshotsforacc=len(x_proj_sum_buff)*plot_every
         
         if not arcing_freeze:
-            sendPlots(x_proj_sum, image_sum, counts_buff, opal_image, hist_L3PhotEnergy, hist_FeeGasEnergy, nevt, numshotsforacc)
+            sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                      hist_FeeGasEnergy, nevt, numshotsforacc)
         
         # Reset
         rolling_count=0
