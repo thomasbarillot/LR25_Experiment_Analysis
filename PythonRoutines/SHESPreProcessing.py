@@ -19,7 +19,7 @@ calib_array=np.arange(714)
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
-count_conv=10765.3295101 # from all in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10765.3295101 & stddev=1503.99298626 
+count_conv=10765.3295101 # from all in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10765.3295101 & stddev=1503.99298626
 # TODO make sure this is correct, for
 # thresholded then perspective transformed then border-discarded image
 
@@ -61,7 +61,7 @@ class SHESPreProcessor(object):
         self.count_conv=count_conv
         self.pers_trans_params=M, x_len_param, y_len_param #perspective transform parameters
         self.poly_fit_params=poly_fit_params
-        self.arcThresh=arcThresh 
+        self.arcThresh=arcThresh
         self.arcMask=makeCircles((innerR, outerR), (xc, yc))
         self.calib_array=calib_array
         
@@ -73,7 +73,7 @@ class SHESPreProcessor(object):
         raw_img=self.opal_det.raw(event)
         if raw_img is None:
             return raw_img
-        return np.rot90(np.copy(raw_img),-1) #rotation added 20171127, needed for LR25 beamtime 
+        return np.rot90(np.copy(raw_img),-1) #rotation added 20171127, needed for LR25 beamtime
         # makes a copy because Detector.raw(evt) returns a read-only array for
         # obvious reasons
 
@@ -153,7 +153,7 @@ class SHESPreProcessor(object):
         opal_image=self.DiscardBorder(self.PerspectiveTransform(self.Threshold(opal_image)))
 
         xs, ys=zip(*self.FindComs(opal_image)[0]) # taking already thresholded array here
-        x_proj=self.XProj(opal_image) 
+        x_proj=self.XProj(opal_image)
 
         return list(xs), list(ys), x_proj
 
@@ -165,7 +165,7 @@ class SHESPreProcessor(object):
             return None, None, None, None # returns NoneTypes
 
         opal_image=self.Threshold(opal_image)
-        arced=self.ArcCheck(opal_image) # Andre does arc checking on the 
+        arced=self.ArcCheck(opal_image) # Andre does arc checking on the
         #thresholded but not perspective transformed image, sodo I
 
         opal_image=self.DiscardBorder(self.PerspectiveTransform(opal_image))
@@ -184,7 +184,7 @@ def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
         for yy in range(1024):
             rad=(xx-xc)**2+(yy-yc)**2
             if rad >= innerR*innerR and rad <= outerR*outerR: # greater than
-                # or equal to condition should exactly recover performance for 
+                # or equal to condition should exactly recover performance for
                 # Andre's previous version
                 arcMask[xx, yy]=1
             
