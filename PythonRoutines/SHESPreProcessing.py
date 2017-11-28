@@ -14,7 +14,7 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 
 #%% For SHES
 # Define detector
-det_name='OPAL1' #TODO is this right for the Scienta?
+det_name='OPAL3' #TODO is this right for the Scienta?
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
