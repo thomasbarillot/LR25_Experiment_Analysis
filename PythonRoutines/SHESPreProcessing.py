@@ -34,7 +34,7 @@ M = cv2.getPerspectiveTransform(pts1,pts2)
 innerR, outerR = 460, 540
 xc, yc = 500, 460
 
-arcThresh=10 #TODO change me
+arcThresh=1.2e6 #TODO change me
 
 # Potentially require parameters for polynomial fitting
 poly_fit_params=None
