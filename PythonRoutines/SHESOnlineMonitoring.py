@@ -9,6 +9,7 @@ import time
 from SHESPreProcessing import SHESPreProcessor
 # This for estimating photon energy from ebeam L3 energy
 from L3EnergyProcessing import L3EnergyProcessor
+from FEEGasProcessing import FEEGasProcessor
 # Import double-ended queue
 from collections import deque
 # Imports for plotting
@@ -35,6 +36,9 @@ plot_every=10 #plot every n frames
 #%% For arcing warning
 arc_wait_time=1.5 # how many seconds to hang on arcing warning?
 
+# For FEE Gas detector
+fee_gas_threshold=0.2 #in mJ
+
 #%% Now run
 quot,rem=divmod(history_len, plot_every)
 if rem!=0:
@@ -50,6 +54,8 @@ _,j_len,i_len=processor.pers_trans_params #for specified x_len_param/y_len_param
 
 # Initialise L3 ebeam energy processor
 l3Proc=L3EnergyProcessor()
+# Initialise FEE  Gas processor
+feeGas=FEEGasProcessor()
 
 image_sum_buff=deque(maxlen=1+history_len/plot_every)  # These keep the most recent one NOT to
 x_proj_sum_buff=deque(maxlen=1+history_len/plot_every) # be plotted so that it can be taken away
@@ -63,8 +69,21 @@ x_proj_sum=np.zeros(j_len)
 
 rolling_count=0
 for nevt, evt in enumerate(ds.events()):
-    opal_image, x_proj, count_estimate, arced=processor.OnlineProcess(evt)
 
+    fee_gas_energy=feeGas.ShotEnergy(evt)
+    if fee_gas_energy is None:
+        print 'No FEE gas energy, continuing to next event'
+        continue
+    if fee_gas_energy < fee_gas_threshold:
+        print 'FEE gas energy = '+str(fee_gas_energy)+' mJ -> continuing to next event'
+        continue
+    
+    cent_pe=l3Proc.CentPE(evt)
+    if not (cent_pe < max_cent_pe and cent_pe > min_cent_pe):
+        print '\'Central\' photon energy = '+str(np.round(cent_pe,2))+\
+        '-> outside specified range, skipping event'
+
+    opal_image, x_proj, count_estimate, arced=processor.OnlineProcess(evt)
     if opal_image is None:
         print 'No SHES image, continuing to next event'
         continue
@@ -103,12 +122,6 @@ for nevt, evt in enumerate(ds.events()):
 
         continue # don't accumulate data for the arced shot
         
-    #%%
-    cent_pe=l3Proc.CentPE(evt)
-    if not (cent_pe < max_cent_pe and cent_pe > min_cent_pe):
-        print '\'Central\' photon energy = '+str(np.round(cent_pe,2))+\
-        '-> outside specified range, skipping event'
-
     image_buff[rolling_count]=opal_image
     x_proj_buff[rolling_count]=x_proj
     counts_buff.append(count_estimate)

@@ -4,6 +4,7 @@ from psana import *
 ebeam_det_name = 'EBeam' #TODO check this
 gammaConvFact=13720. #TODO check this (from Alberto or Ago for eV calculation)
 peConvFact=8330. #TODO check this (from Alberto or Ago for eV calculation)
+#TODO funcitonality for returning None
 
 class L3EnergyProcessor(object):
     
