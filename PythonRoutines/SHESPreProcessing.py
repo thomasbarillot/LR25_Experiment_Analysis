@@ -14,7 +14,8 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 
 #%% For SHES
 # Define detector
-det_name='OPAL1' #TODO is this right for the Scienta?
+det_name='OPAL3' #TODO is this right for the Scienta?
+calib_array=np.arange(714)
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
@@ -34,12 +35,15 @@ M = cv2.getPerspectiveTransform(pts1,pts2)
 innerR, outerR = 460, 540
 xc, yc = 500, 460
 
-arcThresh=1.2e6 #TODO change me
+arcThresh=1.2e6 #1.2e6 #TODO change me
 
 # Potentially require parameters for polynomial fitting
 poly_fit_params=None
 
 #TODO DiscardBorder before or after perspective transform?
+
+if calib_array.shape[0]!=x_len_param:
+    raise ValueError, 'calibration array is not of same length as (corrected) OPAL image x-axis'
 
 #%%
 
@@ -59,6 +63,7 @@ class SHESPreProcessor(object):
         self.poly_fit_params=poly_fit_params
         self.arcThresh=arcThresh 
         self.arcMask=makeCircles((innerR, outerR), (xc, yc))
+        self.calib_array=calib_array
         
     def ArcCheck(self, opal_image):
         arc=np.sum(opal_image*self.arcMask)>self.arcThresh
@@ -152,7 +157,7 @@ class SHESPreProcessor(object):
 
         return list(xs), list(ys), x_proj
 
-    def OnlineProcess(self, event):
+    def OnlineProcess(self, event, countratelims=0): #TODO start here
         #TODO include suitable behaviour (give warning) if the MCP is arcing
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)

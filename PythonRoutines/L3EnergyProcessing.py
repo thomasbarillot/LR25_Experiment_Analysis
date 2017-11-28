@@ -16,7 +16,10 @@ class L3EnergyProcessor(object):
     
     def CentPE(self, event): #'central' photon energy - harder to define 
                              # for two-colour expt
-        energyL3=self.ebeam_det.get(event).ebeamL3Energy()
+        ebeamparams=self.ebeam_det.get(event)
+        if ebeamparams is None:
+            return None
+        energyL3=ebeamparams.ebeamL3Energy()
         gamma = energyL3/self.gammaConvFact
 
         return self.peConvFact * gamma**2
