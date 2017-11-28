@@ -58,7 +58,7 @@ class XTCExporter(object):
                 
     def DetInit(self):
         self.ds = DataSource(self.args.exprun + \
-                             ':smd:dir=/reg/d/psdm/amo/amolr2516/xtc:live')
+                             ':smd:dir=/reg/d/psdm/amo/amox23616/xtc:live')
         
         XTCAVRetrieval = ShotToShotCharacterization()
         XTCAVRetrieval.SetEnv(self.ds.env())
@@ -217,20 +217,20 @@ class XTCExporter(object):
         if self.args.save == True:
              
             runnumber = int(self.args.exprun[17:])
-            filename = 'amolr2516_r' + str(runnumber).zfill(4) + '_' + \
+            filename = 'amox23616_r' + str(runnumber).zfill(4) + '_' + \
                         str(rank).zfill(3) + '_' + str(self.filenum).zfill(3)
                      
-            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
+            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/PreBeamtimeAmolr2516/npzfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
-            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
+            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/PreBeamtimeAmolr2516/matfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
             if not os.path.exists(directory_n):
                 os.makedirs(directory_n)
             if not os.path.exists(directory_m):
                 os.makedirs(directory_m)
-            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
+            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/PreBeamtimeAmolr2516/npzfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
-            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
+            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/PreBeamtimeAmolr2516/matfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
             if not os.path.exists(directory_n):
                 os.makedirs(directory_n)
