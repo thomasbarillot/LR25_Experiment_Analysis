@@ -3,6 +3,8 @@ Electron Spectrometer"""
 
 from psana import *
 import numpy as np
+import cv2
+import time
 # This class for processing SHES data
 from SHESPreProcessing import SHESPreProcessor
 # This for estimating photon energy from ebeam L3 energy
@@ -29,6 +31,9 @@ history_len=1000
 history_len_counts=1000 # different history length for plotting the estimated counts
 
 plot_every=10 #plot every n frames
+
+#%% For arcing warning
+arc_wait_time=1.5 # how many seconds to hang on arcing warning?
 
 #%% Now run
 quot,rem=divmod(history_len, plot_every)
@@ -57,12 +62,42 @@ x_proj_sum=np.zeros(j_len)
 
 rolling_count=0
 for nevt, evt in enumerate(ds.events()):
-    opal_image, x_proj, count_estimate=processor.OnlineProcess(evt)
+    opal_image, x_proj, count_estimate, arced=processor.OnlineProcess(evt)
 
     if opal_image is None:
         print 'No SHES image, continuing to next event'
         continue
     
+    if arced:
+        print '***WARNING - ARC DETECTED!!!***'
+
+        cv2.putText(image_sum,'ARCING DETECTED!!!', 
+        (50,520), cv2.FONT_HERSHEY_SIMPLEX, 3, (255,0,0), 10)
+        
+        #%% Now send plots (only counts updated from last time) and wait 2 seconds
+        # Define plots
+        plotxproj = XYPlot(0,'Accumulated electron spectrum over past '+\
+                    str((len(x_proj_sum_buff)-1)*plot_every)+ \
+                     ' shots', np.arange(x_proj_sum.shape[0]), x_proj_sum)
+        plotcumimage = Image(0, 'Accumulated sum', image_sum)
+        plotcounts = XYPlot(0,'Estimated number of identified electron counts over past '+ \
+                            str(len(counts_buff))+' shots', np.arange(len(counts_buff)), \
+                            np.array(counts_buff))
+
+        multi=MultiPlot(0, 'Multi', ncols=2)
+
+        multi.add(plotxproj)
+        multi.add(plotcumimage)
+        multi.add(plotcounts)
+        
+        # Publish plots
+        publish.send('SHESOnline', multi)
+        
+        time.sleep(arc_wait_time)
+
+        continue # don't accumulate data for the arced shot
+        
+    #%%
     cent_pe=l3Proc.CentPE(evt)
     if not (cent_pe < max_cent_pe and cent_pe > min_cent_pe):
         print '\'Central\' photon energy = '+str(np.round(cent_pe,2))+\
@@ -100,7 +135,7 @@ for nevt, evt in enumerate(ds.events()):
                     str((len(x_proj_sum_buff)-1)*plot_every)+ \
                      ' shots', np.arange(x_proj_sum.shape[0]), x_proj_sum)
         plotcumimage = Image(0, 'Accumulated sum', image_sum)
-        plotcounts = XYPlot(0,'Estimated number of identified e$^{-}$ counts over past '+ \
+        plotcounts = XYPlot(0,'Estimated number of identified electron counts over past '+ \
                             str(len(counts_buff))+' shots', np.arange(len(counts_buff)), \
                             np.array(counts_buff))
 

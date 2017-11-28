@@ -14,11 +14,13 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 
 #%% For SHES
 # Define detector
-det_name='OPAL1' #TODO may need changing across beamtimes
+det_name='OPAL3' #TODO is this right for the Scienta?
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
-count_conv=10765.3295101 # from all in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10765.3295101 & stddev=1503.99298626
+count_conv=10765.3295101 # from all in "exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live", mean=10765.3295101 & stddev=1503.99298626 
+# TODO make sure this is correct, for
+# thresholded then perspective transformed then border-discarded image
 
 # Define perspective transform
 pts1  = np.float32([[131,212],[845,162],[131,701],[845,750]])
@@ -26,13 +28,13 @@ x_len_param = 714
 y_len_param = 489
 pts2 = np.float32([[0,0],[x_len_param,0],[0,y_len_param],[x_len_param,y_len_param]])
 M = cv2.getPerspectiveTransform(pts1,pts2)
-# these are updated from Andre's numbers, taken 20171127
+# these are updated, valid for LR25
 
 # For defining circles to check for arcing, and arcing threshold
 innerR, outerR = 460, 540
 xc, yc = 500, 460
 
-arcThresh=3.2e6 #change me
+arcThresh=3.2e6 #TODO change me
 
 # Potentially require parameters for polynomial fitting
 poly_fit_params=None
@@ -89,8 +91,8 @@ class SHESPreProcessor(object):
         M, x_len_param, y_len_param = self.pers_trans_params
         return cv2.warpPerspective(opal_image, M, (x_len_param, y_len_param))
         # this returns an nd.array of shape (y_len_param, x_len_param), I don't
-        # understand why #TODO understand! My best guess is that inside the cv2.warpPerspective
-        #/cv2.getPerspectiveTransform functions, row becomes x-axis and col becomes y-axis
+        # understand why #TODO understand! My best guess is that inside the cv2.warpPerspective/
+        #cv2.getPerspectiveTransform functions, row becomes x-axis and col becomes y-axis
 
     def PolyFit(self, opal_image):
         return opal_image #TODO
@@ -142,11 +144,11 @@ class SHESPreProcessor(object):
         opal_image=self.GetRawImg(event)
         if opal_image is None:
             return np.nan, np.nan, np.nan
-        opal_image=self.PerspectiveTransform(opal_image)
-     
-        opal_image=self.DiscardBorder(opal_image)
-        xs, ys=zip(*self.FindComs(opal_image)[0]) # FindComs() doesn't need thresholded array
-        x_proj=self.XProj(self.Threshold(opal_image)) # So threshold here  
+
+        opal_image=self.DiscardBorder(self.PerspectiveTransform(self.Threshold(opal_image)))
+
+        xs, ys=zip(*self.FindComs(opal_image)[0]) # taking already thresholded array here
+        x_proj=self.XProj(opal_image) 
 
         return list(xs), list(ys), x_proj
 
@@ -155,19 +157,18 @@ class SHESPreProcessor(object):
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
-            return None, None, None # returns NoneType
-        opal_image=self.PerspectiveTransform(opal_image)
-        opal_image=self.Threshold(self.DiscardBorder(opal_image))
+            return None, None, None, None # returns NoneTypes
+
+        opal_image=self.Threshold(opal_image)
+        arced=self.ArcCheck(opal_image) # Andre does arc checking on the 
+        #thresholded but not perspective transformed image, sodo I
+
+        opal_image=self.DiscardBorder(self.PerspectiveTransform(opal_image))
 
         count_estimate=opal_image.sum().sum()/float(self.count_conv)        
         x_proj=self.XProj(opal_image)
         
-        return opal_image, x_proj, count_estimate
-
-def L3EnergyProcessor(object):
-    "This processes the L3 Energy ebeam parameter"
-    
-
+        return opal_image, x_proj, count_estimate, arced
 
 #%% some functions
 def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
