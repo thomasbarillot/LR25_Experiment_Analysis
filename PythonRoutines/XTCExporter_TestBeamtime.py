@@ -242,14 +242,20 @@ class XTCExporter(object):
             
             if rank == 1:
                 print 'rank 1 writing file...'
-                
+            
+	    # Save electrons hits in one array:
+	    SHESHits=np.zeros((len(self.ehitsX),3))
+	    SHESHits[:,0]=self.ehitsX
+	    SHESHits[:,1]=self.ehitsY
+	    SHESHits[:,2]=self.ehitsTS
+
             data={'EBeamParameters':self.ebeamArr,
-                                       'SHESHits':self.[0:self.nsave,:].astype(np.float16), \
+                                       'SHESHits':self.SHESHits.astype(np.float64), \
                                        'SHESwf':self.shProjArr[0:self.nsave,:].astype(np.float16), \
-				       'UXSpc':,\
-				       'UXSwf':,\
+				       'UXSpc':self.uxsPCArr[0:self.nsave,:].astype(np.float16),\
+				       'UXSwf':self.uxsProjArr[0:self.nsave,:].astype(np.float16),\
                                        'ITOF':self.itofArr[0:self.nsave].astype(np.float16)\
-				       'Pressure':,\
+				       'Pressure':self.sPressArr[0:self.nsave],\
 				       'GasDetector':self.gmdArr[0:self.nsave,:], \
                                        'EnvVar':self.envArr[0:self.nsave,:], \
                                        'T':self.T, \
