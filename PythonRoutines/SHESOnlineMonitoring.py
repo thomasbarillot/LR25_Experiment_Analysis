@@ -124,8 +124,6 @@ hist_FeeGasEnergy_CountsROI_all = np.zeros((numbins_FEE_CountsROI_FEE, numbins_F
 quot_a,rem_a=divmod(history_len, refresh_rate)
 if rem_a!=0:
     history_len=refresh_rate*quot_a+1
-    print 'For efficient monitoring of accumulated electron spectra require history_len divisible by \
-    refresh_rate, set history_len to '+str(history_len)   
 
 count_conv=processor.count_conv # conversion factor from integrated signal -> number electron counts estimate
 calib_array=processor.calib_array # calibration array mapping pixels onto eV for SHES
@@ -133,13 +131,15 @@ calib_array=processor.calib_array # calibration array mapping pixels onto eV for
 # Find indices for monitoring region of interest
 roi_idx_lower, roi_idx_upper = (np.abs(calib_array-roi_lower)).argmin(), \
 (np.abs(calib_array-roi_upper)).argmin()
-
 roi_lower_act, roi_upper_act=calib_array[roi_idx_lower], calib_array[roi_idx_upper]
-print 'Monitoring counts in region between ' +str(np.round(roi_lower_act,2))+\
-      ' eV - '+str(np.round(roi_upper_act,2))+' eV'
 
 if rank==0: # initilisation for the root core only
     publish.init() # for plotting
+    print 'Monitoring counts in region between ' +str(np.round(roi_lower_act,2))+\
+          ' eV - '+str(np.round(roi_upper_act,2))+' eV'
+    if rem_a!=0:
+        print 'For efficient monitoring of accumulated electron spectra require history_len divisible by \
+        refresh_rate, set history_len to '+str(history_len)   
 
     #%% Define plotting function
     def definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_roi, opal_image, (hist_L3PhotEnergy, \
