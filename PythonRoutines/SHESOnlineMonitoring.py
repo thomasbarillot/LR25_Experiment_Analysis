@@ -1,23 +1,29 @@
 """This code for online monitoring of the Scienta Hemispherical 
 Electron Spectrometer"""
-
+# Standard Python imports
 from psana import *
 import numpy as np
 import cv2
 import time
+
 # This class for processing SHES data
 from SHESPreProcessing import SHESPreProcessor
+
 # This for estimating photon energy from ebeam L3 energy
 from L3EnergyProcessing import L3EnergyProcessor
 from FEEGasProcessing import FEEGasProcessor
+
 # Import double-ended queue
 from collections import deque
+
 # 2D histogram from old psana code
 from skbeam.core.accumulators.histogram import Histogram
+
 # Imports for plotting
-from psmon.plots import XYPlot,Image,Hist
+from psmon.plots import XYPlot,Image,Hist,MultiPlot
 from psmon import publish
 publish.local=True # changeme
+
 # Imports for parallelisation
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
@@ -28,6 +34,7 @@ size = comm.Get_size() # no. of CPUs being used
 #ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
 ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
 # TODO change to access the shared memory
+
 threshold=500 # for thresholding of raw OPAL image
 
 # Define ('central') photon energy bandwidth for plotting projected spectrum
@@ -48,6 +55,14 @@ numbins_L3PhotEnergy=20
 minhistlim_FeeGasEnergy=0 # in mJ
 maxhistlim_FeeGasEnergy=2 # in mJ
 numbins_FeeGasEnergy=10
+
+# Define parameters for FEE Gas Energy/ROI Counts 2D histogram
+numbins_FGE_Counts_FGE=10
+minhistlim_FGE_Counts_FGE=0
+maxhistlim_FGE_Counts_FGE=2
+numbins_FGE_Counts_Counts=20
+minhistlim_FGE_Counts_Counts=0
+maxhistlim_FGE_Counts_Counts=50
 
 # Other parameters
 history_len=1000
@@ -98,7 +113,8 @@ counts_buff_regint=np.zeros((refresh_rate,2)) # this gets reset to 0.
 
 hist_L3PhotEnergy = Histogram((numbins_L3PhotEnergy,minhistlim_L3PhotEnergy,maxhistlim_L3PhotEnergy))
 hist_FeeGasEnergy = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy))
-# hist_FeeGasEnergy_Counts = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
+hist_FeeGasEnergy_CountsROI = Histogram((numbins_FGE_Counts_FGE,minhistlim_FGE_Counts_FGE,maxhistlim_FGE_Counts_FGE),\
+                              numbins_FGE_Counts_Counts,minhistlim_FGE_Counts_Counts,maxhistlim_FGE_Counts_Counts))
 
 if rank==0:
     publish.init() # initialise for plotting
@@ -115,13 +131,14 @@ if rank==0:
     image_sum_buff=deque(maxlen=1+history_len/refresh_rate)  # These keep the most recent one NOT to
     x_proj_sum_buff=deque(maxlen=1+history_len/refresh_rate) # be plotted so that it can be taken away
                                                              # from the rolling sum
-    hist_L3PhotEnergy_all = np.zeros(numbins_L3PhotEnergy) #Histogram((numbins_L3PhotEnergy,minhistlim_L3PhotEnergy,maxhistlim_L3PhotEnergy))
-    hist_FeeGasEnergy_all = np.zeros(numbins_FeeGasEnergy) #Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy))
-    # hist_FeeGasEnergy_Counts = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
+    hist_L3PhotEnergy_all = np.zeros(numbins_L3PhotEnergy)
+    hist_FeeGasEnergy_all = np.zeros(numbins_FeeGasEnergy) 
+    hist_FeeGasEnergy_Counts = np.zeros(numbins_FeeGasEnergy)
+#Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
 
     #%% Define plotting function
-    def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, nevt, numshotsforacc):
+    def definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc):
             # Define plots
             plotxproj = XYPlot(nevt,'Accumulated electron spectrum over past '+\
                     str(numshotsforacc)+' good shots', \
@@ -140,7 +157,15 @@ if rank==0:
                            hist_L3PhotEnergy_all)
             plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above '+str(np.round(fee_gas_threshold, 2))+\
             ' only)',  hist_FeeGasEnergy.edges[0], hist_FeeGasEnergy_all)
-        
+
+            return plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, plotfeeGasEnergy_Counts
+
+    def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc):
+            plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, \
+            plotFeeGasEnergy_Counts=\
+            definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc)
             # Publish plots
             publish.send('AccElectronSpec', plotxproj)
             publish.send('OPALCameraAcc', plotcumimage)
@@ -149,6 +174,28 @@ if rank==0:
             publish.send('OPALCameraSingShot', plotshot)
             publish.send('L3Histogram', plotL3PhotEnergy)
             publish.send('FEEGasHistogram', plotFeeGasEnergy)
+
+    def sendMultiPlot(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, nevt, numshotsforacc):
+            plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, \
+            plotFeeGasEnergy_Counts=\
+            definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc)
+            # Define multiplot
+            multi = MultiPlot(nevt, 'SHES Online Monitoring', ncols=3)
+            # Publish plots
+            multi.add(plotshot)
+            multi.add(plotcounts)
+            multi.add(plotL3PhotEnergy)
+
+            multi.add(plotcumimage)
+            multi.add(plotcountsregint)            
+            multi.add(plotFeeGasEnergy)
+
+            multi.add(plotxproj)
+            multi.add(plotFeeGasEnergy_Counts)
+
+            publish.send('SHES Online Monitoring', multi)
 
 arcing_freeze=False
 rolling_count=0
@@ -193,10 +240,9 @@ for nevt, evt in enumerate(ds.events()):
         opal_image_copy=np.copy(opal_image)
         cv2.putText(opal_image_copy,'ARCING DETECTED!!!', \
         (50,int(i_len/2)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0), 10)
-        
+        # Just send the single shot so you can see
         plotshot = Image(nevt, 'Single shot', opal_image_copy)
         publish.send('OPALCameraSingShot', plotshot)
-
 #        arcing_freeze=True
 #        arc_time_ref=time.time()
 
@@ -214,6 +260,8 @@ for nevt, evt in enumerate(ds.events()):
     # integrated signal) compared to the case where the array you are integrating over is entirely filled
     # by the MCP image, which is most likely the case for the region of interest 
     counts_buff_regint[rolling_count,0]=nevt; counts_buff_regint[rolling_count,1]=count_estimate_regint
+    
+    hist_FeeGasEnergy_CountsROI.fill(fee_gas_energy, count_estimate_regint)
 
     rolling_count+=1 #increment here
 
@@ -269,7 +317,7 @@ for nevt, evt in enumerate(ds.events()):
             counts_buff_regint_all+=counts_buff_regint_tosort[np.argsort(counts_buff_regint_tosort[:,0])][:,1].tolist()
              
 #        if not arcing_freeze:
-            sendPlots(x_proj_sum, image_sum, counts_buff_all, counts_buff_regint_all, opal_image, hist_L3PhotEnergy, hist_FeeGasEnergy, nevt, numshotsforacc)
+            sendMultiPlot(x_proj_sum, image_sum, counts_buff_all, counts_buff_regint_all, opal_image, hist_L3PhotEnergy, hist_FeeGasEnergy, nevt, numshotsforacc)
 
 
         

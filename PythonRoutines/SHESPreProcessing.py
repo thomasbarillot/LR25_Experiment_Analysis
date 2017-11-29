@@ -148,7 +148,7 @@ class SHESPreProcessor(object):
         'This is the standard pre-processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
-            return np.nan, np.nan, np.nan
+            return [np.nan], [np.nan], np.nan
 
         opal_image=self.DiscardBorder(self.PerspectiveTransform(self.Threshold(opal_image)))
 
