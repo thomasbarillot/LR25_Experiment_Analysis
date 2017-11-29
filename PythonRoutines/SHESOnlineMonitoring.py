@@ -21,11 +21,8 @@ publish.local=True # changeme
 # Imports for parallelisation
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
-rank = comm.Get_rank() # 
-size = comm.Get_size() # no. of CPUs being used
-
-if rank==0: # initialise plotting core to publish
-    publish.init()
+rank = comm.Get_rank() # which core am I being run on
+size = comm.Get_size() # no. of CPUs being used    
 
 # Set parameters
 #ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
@@ -56,7 +53,7 @@ numbins_FeeGasEnergy=10
 history_len=1000
 history_len_counts=1000 # different history length for plotting the estimated counts
 
-plot_every=10 #plot every n frames
+refresh_rate=10 #plot every n frames
 
 #%% For arcing warning
 arc_freeze_time=0.2 # how many seconds to freeze plotting after arcing warning?
@@ -64,43 +61,12 @@ arc_freeze_time=0.2 # how many seconds to freeze plotting after arcing warning?
 # For FEE Gas detector
 fee_gas_threshold=0.0 #in mJ
 
-#%% Define some functions
-def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-              hist_FeeGasEnergy, nevt, numshotsforacc):
-        # Define plots
-        plotxproj = XYPlot(nevt,'Accumulated electron spectrum over past '+\
-                    str(numshotsforacc)+' good shots', \
-                    np.arange(x_proj_sum.shape[0]), x_proj_sum)
-        plotcumimage = Image(nevt, 'Accumulated sum ('+str(numshotsforacc)+' good shots)', image_sum)
-        plotcounts = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
-                            str(len(counts_buff))+' good shots', np.arange(len(counts_buff)), \
-                            np.array(counts_buff))
-        plotcountsregint = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
-                            str(len(counts_buff_regint))+' good shots in region '+str(np.round(region_int_lower_act,2))+\
-                            ' eV - '+str(np.round(region_int_upper_act,2))+' eV (inclusive)', \
-                            np.arange(len(counts_buff_regint)), np.array(counts_buff_regint))
-        plotshot = Image(nevt, 'Single shot', opal_image)
-        plotL3PhotEnergy = Hist(nevt,'Histogram of L3 \'central\' photon energies (plotting for '+str(np.round(min_cent_pe, 2))+\
-        '- '+str(np.round(min_cent_pe, 2))+')',  hist_L3PhotEnergy.edges[0], \
-                           np.array(hist_L3PhotEnergy.values))
-        plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above '+str(np.round(fee_gas_threshold, 2))+\
-        ' only)',  hist_FeeGasEnergy.edges[0], np.array(hist_FeeGasEnergy.values))
-        
-        # Publish plots
-        publish.send('AccElectronSpec', plotxproj)
-        publish.send('OPALCameraAcc', plotcumimage)
-        publish.send('ElectronCounts', plotcounts)
-        publish.send('ElectronCountsRegInt', plotcountsregint)
-        publish.send('OPALCameraSingShot', plotshot)
-        publish.send('L3Histogram', plotL3PhotEnergy)
-        publish.send('FEEGasHistogram', plotFeeGasEnergy)
-
 #%% Now run
-quot,rem=divmod(history_len, plot_every)
+quot,rem=divmod(history_len, refresh_rate)
 if rem!=0:
-    history_len=plot_every*quot+1
+    history_len=refresh_rate*quot+1
     print 'For efficient monitoring of acc sum require history_len divisible by \
-    plot_every, set history_len to '+str(history_len)
+    refresh_rate, set history_len to '+str(history_len)
 
 # Initialise SHES processor
 processor=SHESPreProcessor(threshold=threshold)
@@ -124,21 +90,65 @@ l3Proc=L3EnergyProcessor()
 feeGas=FEEGasProcessor()
 
 # Other initialisation
-image_sum_buff=deque(maxlen=1+history_len/plot_every)  # These keep the most recent one NOT to
-x_proj_sum_buff=deque(maxlen=1+history_len/plot_every) # be plotted so that it can be taken away
-                                                       # from the rolling sum
-image_buff=np.zeros((plot_every, i_len, j_len)) # this gets reset to 0
-x_proj_buff=np.zeros((plot_every, j_len)) # this gets reset to 0
-counts_buff=deque(maxlen=history_len_counts) # this doesn't get reset to 0
-counts_buff_regint=deque(maxlen=history_len_counts) # this doesn't get reset to 0. regint = region of 
-# interest, specified above
+image_buff=np.zeros((refresh_rate, i_len, j_len)) # this gets reset to 0
+x_proj_buff=np.zeros((refresh_rate, j_len)) # this gets reset to 0
+
+counts_buff=np.zeros((refresh_rate,2)) # this gets reset to 0.
+counts_buff_regint=np.zeros((refresh_rate,2)) # this gets reset to 0.
 
 hist_L3PhotEnergy = Histogram((numbins_L3PhotEnergy,minhistlim_L3PhotEnergy,maxhistlim_L3PhotEnergy))
 hist_FeeGasEnergy = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy))
 # hist_FeeGasEnergy_Counts = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
- 
-image_sum=np.zeros((i_len, j_len))
-x_proj_sum=np.zeros(j_len)
+
+if rank==0:
+    publish.init() # initialise for plotting
+
+    image_sum=np.zeros((i_len, j_len))
+    x_proj_sum=np.zeros(j_len)
+
+    image_sum_slice=np.zeros((i_len, j_len))
+    x_proj_sum_slice=np.zeros(j_len)
+
+    counts_buff_all=deque(maxlen=history_len_counts) # this doesn't get reset to 0
+    counts_buff_regint_all=deque(maxlen=history_len_counts) # this doesn't get reset to 0. regint = region of 
+    # interest, specified above
+    image_sum_buff=deque(maxlen=1+history_len/refresh_rate)  # These keep the most recent one NOT to
+    x_proj_sum_buff=deque(maxlen=1+history_len/refresh_rate) # be plotted so that it can be taken away
+                                                             # from the rolling sum
+    hist_L3PhotEnergy_all = np.zeros(numbins_L3PhotEnergy) #Histogram((numbins_L3PhotEnergy,minhistlim_L3PhotEnergy,maxhistlim_L3PhotEnergy))
+    hist_FeeGasEnergy_all = np.zeros(numbins_FeeGasEnergy) #Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy))
+    # hist_FeeGasEnergy_Counts = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
+
+    #%% Define plotting function
+    def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
+                  hist_FeeGasEnergy, nevt, numshotsforacc):
+            # Define plots
+            plotxproj = XYPlot(nevt,'Accumulated electron spectrum over past '+\
+                    str(numshotsforacc)+' good shots', \
+                    np.arange(x_proj_sum.shape[0]), x_proj_sum)
+            plotcumimage = Image(nevt, 'Accumulated sum ('+str(numshotsforacc)+' good shots)', image_sum)
+            plotcounts = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
+                            str(len(counts_buff))+' good shots', np.arange(len(counts_buff)), \
+                            np.array(counts_buff))
+            plotcountsregint = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
+                            str(len(counts_buff_regint))+' good shots in region '+str(np.round(region_int_lower_act,2))+\
+                            ' eV - '+str(np.round(region_int_upper_act,2))+' eV (inclusive)', \
+                            np.arange(len(counts_buff_regint)), np.array(counts_buff_regint))
+            plotshot = Image(nevt, 'Single shot', opal_image)
+            plotL3PhotEnergy = Hist(nevt,'Histogram of L3 \'central\' photon energies (plotting for '+str(np.round(min_cent_pe, 2))+\
+            ' - '+str(np.round(max_cent_pe, 2))+')',  hist_L3PhotEnergy.edges[0], \
+                           hist_L3PhotEnergy_all)
+            plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above '+str(np.round(fee_gas_threshold, 2))+\
+            ' only)',  hist_FeeGasEnergy.edges[0], hist_FeeGasEnergy_all)
+        
+            # Publish plots
+            publish.send('AccElectronSpec', plotxproj)
+            publish.send('OPALCameraAcc', plotcumimage)
+            publish.send('ElectronCounts', plotcounts)
+            publish.send('ElectronCountsRegInt', plotcountsregint)
+            publish.send('OPALCameraSingShot', plotshot)
+            publish.send('L3Histogram', plotL3PhotEnergy)
+            publish.send('FEEGasHistogram', plotFeeGasEnergy)
 
 arcing_freeze=False
 rolling_count=0
@@ -160,8 +170,8 @@ for nevt, evt in enumerate(ds.events()):
         continue
     
     # If data exists, fill histograms
-    hist_L3PhotEnergy.fill(cent_pe) #ANDRE
-    hist_FeeGasEnergy.fill(fee_gas_energy) #ANDRE
+    hist_L3PhotEnergy.fill(cent_pe) 
+    hist_FeeGasEnergy.fill(fee_gas_energy)
 
     #Check data falls within thresholds
     if fee_gas_energy < fee_gas_threshold:
@@ -180,69 +190,88 @@ for nevt, evt in enumerate(ds.events()):
 
     if arced:
         print '***WARNING - ARC DETECTED!!!***'
-
-        cv2.putText(opal_image,'ARCING DETECTED!!!', 
-        (50,int(i_len/2)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0), 10)
-
-        image_sum_temp=np.copy(image_sum)
-        cv2.putText(image_sum_temp,'ARCING DETECTED!!!', 
+        opal_image_copy=np.copy(opal_image)
+        cv2.putText(opal_image_copy,'ARCING DETECTED!!!', \
         (50,int(i_len/2)), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0), 10)
         
-        sendPlots(x_proj_sum, image_sum_temp, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, nevt, numshotsforacc)
-        arcing_freeze=True
-        arc_time_ref=time.time()
+        plotshot = Image(nevt, 'Single shot', opal_image_copy)
+        publish.send('OPALCameraSingShot', plotshot)
+
+#        arcing_freeze=True
+#        arc_time_ref=time.time()
 
         continue # don't accumulate data for the arced shot
         
     image_buff[rolling_count]=opal_image
     x_proj_buff[rolling_count]=x_proj
 
-    count_estimate=x_proj.sum()/float(count_conv)   
-    counts_buff.append(count_estimate)
+    count_estimate=x_proj.sum()/float(count_conv) 
+    counts_buff[rolling_count,0]=nevt; counts_buff[rolling_count,1]=count_estimate
     
     count_estimate_regint=x_proj[region_int_idx_lower:region_int_idx_upper+1].sum()/float(count_conv) 
     # this ignores the fact that the MCP display doesn't fill the entire OPAL array, which 
     # artificially decreases the integrated signal to count rate conversion factor (it divides the 
     # integrated signal) compared to the case where the array you are integrating over is entirely filled
     # by the MCP image, which is most likely the case for the region of interest 
-    counts_buff_regint.append(count_estimate_regint)
+    counts_buff_regint[rolling_count,0]=nevt; counts_buff_regint[rolling_count,1]=count_estimate_regint
 
     rolling_count+=1 #increment here
 
-    if rolling_count==plot_every:
+    if rolling_count==refresh_rate:
 
-        if arcing_freeze:
-            if (time.time()-arc_time_ref)>arc_freeze_time: arcing_freeze=False
+#        if arcing_freeze:
+#            if (time.time()-arc_time_ref)>arc_freeze_time: arcing_freeze=False
 
-        # Sum the data across the last small slice
-        image_sum_slice=image_buff.sum(axis=0)
-        x_proj_sum_slice=x_proj_buff.sum(axis=0)
-        
-        # Put these sums in the deques for when they need to be
-        # removed from the rolling sum
-        image_sum_buff.append(image_sum_slice)
-        x_proj_sum_buff.append(x_proj_sum_slice)
-        
-        # But for the minute, add to the rolling sum
-        image_sum+=image_sum_slice
-        x_proj_sum+=x_proj_sum_slice
-        
-        # Only take away from the rolling sum if we have had more than the max history
-        # length of shots
-        if len(x_proj_sum_buff)==x_proj_sum_buff.maxlen:
-            #print 'hit max length' 
-            image_sum-=image_sum_buff[0] # don't pop, let the deque with finite maxlen
-            x_proj_sum-=x_proj_sum_buff[0] # take care of that itself
-            numshotsforacc=(len(x_proj_sum_buff)-1)*plot_every
-        else:
-            numshotsforacc=len(x_proj_sum_buff)*plot_every
-        
-        if not arcing_freeze:
-            sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                      hist_FeeGasEnergy, nevt, numshotsforacc)
+        counts_buff_toappend=comm.gather(counts_buff, root=0)
+        counts_buff_regint_toappend=comm.gather(counts_buff_regint, root=0)
+        comm.Reduce(hist_L3PhotEnergy.values, hist_L3PhotEnergy_all, root=0) # array onto array
+        comm.Reduce(hist_FeeGasEnergy.values, hist_FeeGasEnergy_all, root=0) # array onto array
+
+        # Reduce all the sums to the sum on the root core     
+        comm.Reduce(image_buff.sum(axis=0), image_sum_slice, root=0)
+        comm.Reduce(x_proj_buff.sum(axis=0), x_proj_sum_slice, root=0)
+        #print image_buff.sum(axis=0).sum().sum()
         
         # Reset
         rolling_count=0
-        image_buff=np.zeros((plot_every, i_len, j_len))
-        x_proj_buff=np.zeros((plot_every, j_len))
+
+        image_buff=np.zeros((refresh_rate, i_len, j_len))
+        x_proj_buff=np.zeros((refresh_rate, j_len))
+
+        counts_buff=np.zeros((refresh_rate,2)) # reset to 0
+        counts_buff_regint=np.zeros((refresh_rate,2)) # reset to 0
+
+        if rank==0:
+            # Only take away from the rolling sum if we have had more than the max history
+            # length of shots
+            image_sum_buff.append(image_sum_slice) 
+            x_proj_sum_buff.append(x_proj_sum_slice)
+          
+            image_sum+=image_sum_slice
+            x_proj_sum+=x_proj_sum_slice
+
+            if len(x_proj_sum_buff)==x_proj_sum_buff.maxlen:
+                #print 'hit max length' 
+                image_sum-=image_sum_buff[0] # don't pop, let the deque with finite maxlen
+                x_proj_sum-=x_proj_sum_buff[0] # take care of that itself
+                numshotsforacc=(len(x_proj_sum_buff)-1)*refresh_rate
+            else:
+                numshotsforacc=len(x_proj_sum_buff)*refresh_rate
+
+            image_sum_slice=np.zeros((i_len, j_len))
+            x_proj_sum_slice=np.zeros(j_len)
+            
+            counts_buff_tosort=np.concatenate(counts_buff_toappend)
+            counts_buff_all+=counts_buff_tosort[np.argsort(counts_buff_tosort[:,0])][:,1].tolist()
+            # print counts_buff_tosort[np.argsort(counts_buff_tosort[:,0])][:,0].tolist()
+
+            counts_buff_regint_tosort=np.concatenate(counts_buff_regint_toappend)
+            counts_buff_regint_all+=counts_buff_regint_tosort[np.argsort(counts_buff_regint_tosort[:,0])][:,1].tolist()
+             
+#        if not arcing_freeze:
+            sendPlots(x_proj_sum, image_sum, counts_buff_all, counts_buff_regint_all, opal_image, hist_L3PhotEnergy, hist_FeeGasEnergy, nevt, numshotsforacc)
+
+
+        
+
+        

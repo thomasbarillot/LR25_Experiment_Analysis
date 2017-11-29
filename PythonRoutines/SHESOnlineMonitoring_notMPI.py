@@ -18,14 +18,6 @@ from skbeam.core.accumulators.histogram import Histogram
 from psmon.plots import XYPlot,Image,Hist
 from psmon import publish
 publish.local=True # changeme
-# Imports for parallelisation
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank() # 
-size = comm.Get_size() # no. of CPUs being used
-
-if rank==0: # initialise plotting core to publish
-    publish.init()
 
 # Set parameters
 #ds=DataSource("exp=AMO/amon0816:run=228:smd:dir=/reg/d/psdm/amo/amon0816/xtc:live")
@@ -146,7 +138,6 @@ arc_time_ref=0.0 # will be set at certain number of seconds if required
 
 # Now being looping over events
 for nevt, evt in enumerate(ds.events()):
-    if nevt%size!=rank: continue # each core only processes runs it needs
     fee_gas_energy=feeGas.ShotEnergy(evt)
     cent_pe=l3Proc.CentPE(evt)
 
@@ -160,8 +151,8 @@ for nevt, evt in enumerate(ds.events()):
         continue
     
     # If data exists, fill histograms
-    hist_L3PhotEnergy.fill(cent_pe) #ANDRE
-    hist_FeeGasEnergy.fill(fee_gas_energy) #ANDRE
+    hist_L3PhotEnergy.fill(cent_pe)
+    hist_FeeGasEnergy.fill(fee_gas_energy)
 
     #Check data falls within thresholds
     if fee_gas_energy < fee_gas_threshold:
