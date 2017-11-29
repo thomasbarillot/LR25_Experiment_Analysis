@@ -133,12 +133,11 @@ if rank==0:
                                                              # from the rolling sum
     hist_L3PhotEnergy_all = np.zeros(numbins_L3PhotEnergy)
     hist_FeeGasEnergy_all = np.zeros(numbins_FeeGasEnergy) 
-    hist_FeeGasEnergy_Counts = np.zeros(numbins_FeeGasEnergy)
-#Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy, more, more, more))
+    hist_FeeGasEnergy_CountsROI_all = np.zeros((numbins_FGE_Counts_FGE, numbins_FGE_Counts_Counts))
 
     #%% Define plotting function
     def definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc):
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_CountsROI, nevt, numshotsforacc):
             # Define plots
             plotxproj = XYPlot(nevt,'Accumulated electron spectrum over past '+\
                     str(numshotsforacc)+' good shots', \
@@ -157,15 +156,16 @@ if rank==0:
                            hist_L3PhotEnergy_all)
             plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above '+str(np.round(fee_gas_threshold, 2))+\
             ' only)',  hist_FeeGasEnergy.edges[0], hist_FeeGasEnergy_all)
+            plotFeeGasEnergy_countsROI = Hist(nevt,'Histogram of FEE gas energy vs ROI ('#TODO') counts', hist_FeeGasEnergy_CountsROI) #TODO change edges here
 
             return plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, plotfeeGasEnergy_Counts
 
     def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc):
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_CountsROI, nevt, numshotsforacc):
             plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, \
-            plotFeeGasEnergy_Counts=\
+            plotFeeGasEnergy_CountsROI=\
             definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc)
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_CountsROI, nevt, numshotsforacc)
             # Publish plots
             publish.send('AccElectronSpec', plotxproj)
             publish.send('OPALCameraAcc', plotcumimage)
@@ -174,26 +174,25 @@ if rank==0:
             publish.send('OPALCameraSingShot', plotshot)
             publish.send('L3Histogram', plotL3PhotEnergy)
             publish.send('FEEGasHistogram', plotFeeGasEnergy)
+            publish.send('FEEGasROICountsHistogram', plotFeeGasEnergy_CountsROI)
 
     def sendMultiPlot(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, nevt, numshotsforacc):
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_CountsROI, nevt, numshotsforacc):
             plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, \
-            plotFeeGasEnergy_Counts=\
+            plotFeeGasEnergy_CountsROI=\
             definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_regint, opal_image, hist_L3PhotEnergy, \
-                  hist_FeeGasEnergy, hist_FeeGasEnergy_Counts, nevt, numshotsforacc)
+                  hist_FeeGasEnergy, hist_FeeGasEnergy_CountsROI, nevt, numshotsforacc)
             # Define multiplot
             multi = MultiPlot(nevt, 'SHES Online Monitoring', ncols=3)
             # Publish plots
             multi.add(plotshot)
             multi.add(plotcounts)
             multi.add(plotL3PhotEnergy)
-
             multi.add(plotcumimage)
             multi.add(plotcountsregint)            
             multi.add(plotFeeGasEnergy)
-
             multi.add(plotxproj)
-            multi.add(plotFeeGasEnergy_Counts)
+            multi.add(plotFeeGasEnergy_Countshist_FeeGasEnergy_CountsROI)
 
             publish.send('SHES Online Monitoring', multi)
 
@@ -213,7 +212,7 @@ for nevt, evt in enumerate(ds.events()):
         continue
 
     if cent_pe is None:
-        print 'No L3 e-beam energy, continuing to next event'        
+        print 'No L3 e-beam energy, continuing to next event'
         continue
     
     # If data exists, fill histograms
@@ -274,6 +273,7 @@ for nevt, evt in enumerate(ds.events()):
         counts_buff_regint_toappend=comm.gather(counts_buff_regint, root=0)
         comm.Reduce(hist_L3PhotEnergy.values, hist_L3PhotEnergy_all, root=0) # array onto array
         comm.Reduce(hist_FeeGasEnergy.values, hist_FeeGasEnergy_all, root=0) # array onto array
+        comm.Reduce(hist_FeeGasEnergy_CountsROI, hist_FeeGasEnergy_Counts_allROI, root=0) # TODO is this doing what I want
 
         # Reduce all the sums to the sum on the root core     
         comm.Reduce(image_buff.sum(axis=0), image_sum_slice, root=0)
@@ -317,7 +317,8 @@ for nevt, evt in enumerate(ds.events()):
             counts_buff_regint_all+=counts_buff_regint_tosort[np.argsort(counts_buff_regint_tosort[:,0])][:,1].tolist()
              
 #        if not arcing_freeze:
-            sendMultiPlot(x_proj_sum, image_sum, counts_buff_all, counts_buff_regint_all, opal_image, hist_L3PhotEnergy, hist_FeeGasEnergy, nevt, numshotsforacc)
+            sendMultiPlot(x_proj_sum, image_sum, counts_buff_all, counts_buff_regint_all, opal_image, hist_L3PhotEnergy_all, \
+                          hist_FeeGasEnergy_all, hist_FeeGasEnergy_Counts_all, nevt, numshotsforacc)
 
 
         
