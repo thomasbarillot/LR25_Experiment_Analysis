@@ -1,11 +1,13 @@
 """This code for online monitoring of the Scienta Hemispherical 
-Electron Spectrometer"""
+Electron Spectrometer
+
+mpirun --oversubscribe -n 10 --host daq-amo-mon02,daq-amo-mon03,daq-amo-mon04,daq-amo-mon05,daq-amo-mon06 python SHESOnlineMonitoring.py"""
+
 # Standard Python imports
 from psana import *
 import numpy as np
 import cv2
 import time
-
 # Class for processing SHES data
 from SHESPreProcessing import SHESPreProcessor
 # Class to estimate photon energy from ebeam L3 energy
@@ -25,7 +27,8 @@ publish.local=True # changeme
  
 #%% Set parameters
 # This will be shared memory for online analysis
-ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
+#ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
+ds = DataSource('shmem=psana.0:stop=no')
 
 opal_threshold=500 # for thresholding of raw OPAL image
 
@@ -80,6 +83,7 @@ feeGas=FEEGasProcessor()
 comm = MPI.COMM_WORLD # define parallelisation object
 rank = comm.Get_rank() # which core is script being run on
 size = comm.Get_size() # no. of CPUs being used
+print 'I\m alive! ('+str(rank)+')'
 
 # Extract shape of arrays which SHES processor will return
 _,j_len,i_len=processor.pers_trans_params # for specified x_len_param/y_len_param in SHESPreProcessor,
