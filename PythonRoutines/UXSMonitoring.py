@@ -89,10 +89,10 @@ for nevt, evt in enumerate(ds.events()):
     metadata[frameidx] = "{}, PhEn: {}, {}".format(frameidx, photonenergy, str(evt.get(EventId)))
     
     #opal_raw = np.rot90(opal_raw.copy()) # Do not rotate on LR25!
-    uxspre = UXSDataPreProcessing(opal_raw.copy()) ## TODO only copy here if needed
-    #opal = uxspre.FilterImage()
+    uxspre = UXSDataPreProcessing()
+    ## TODO only copy here if needed
+    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(opal_raw.copy(), True)
     energyscale = uxspre.energyscale
-    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(True)
     
     # Make the accumulation
     # TODO make sure this don't accumulate the floating point error
