@@ -273,7 +273,7 @@ class UXSDataPreProcessing:
         returns the fitresults as produced by FitToDoubleGaussian
         """
         # Fix the image
-        self.image = image
+        self.image = image.copy()
         energyscale = self.energyscale
         self.CorrectImageGeometry()
         # Find a rudimentary background
