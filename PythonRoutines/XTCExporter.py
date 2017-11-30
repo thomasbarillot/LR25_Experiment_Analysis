@@ -14,6 +14,7 @@ sys.path.append('/reg/neh/home4/tbarillo/amolr2516/LR25_Analysis/PythonRoutines/
 
 import ITOFDataPreProcessing
 import UXSDataPreProcessing
+import SHESPreProcessing
 
 #### Parallel processing
 
@@ -58,12 +59,13 @@ class XTCExporter(object):
                 
     def DetInit(self):
         self.ds = DataSource(self.args.exprun + \
-                             ':smd:dir=/reg/d/psdm/amo/amolr2516/xtc:live')
+                             ':smd:dir=/reg/d/psdm/amo/amox23616/xtc:live')
         
         XTCAVRetrieval = ShotToShotCharacterization()
         XTCAVRetrieval.SetEnv(self.ds.env())
 
-        self.SHES  = Detector(self.args.SHES)
+        #self.SHES = Detector(self.args.SHES)
+	self.SHES=SHESPreProcessor()
         self.UXS = Detector(self.args.UXS)
 	self.ITOF = Detector(self.args.ITOF)	
 	self.XTCAV = Detector(self.args.XTCAV)
@@ -138,9 +140,6 @@ class XTCExporter(object):
             self.shenergy = mbtime[0,:]
 
         # Get the hemisperical analyser signal data
-	self.ehits[0].append() #Xpos
-        self.ehits[1].append() #Ypos
-	self.ehits[2].append() #evt index
             
 	# Get the Xray spectrometer analyser data
 	XrayImg=self.UXS.raw(evt)
