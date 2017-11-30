@@ -8,8 +8,8 @@ from psana import *
 import numpy as np
 import cv2
 import time
-# Class for UXS
-from UXSDataPreProcessing import UXSDataPreProcessing
+## Class for UXS
+#from UXSDataPreProcessing import UXSDataPreProcessing
 # Class for processing SHES data
 from SHESPreProcessing import SHESPreProcessor
 # Class to estimate photon energy from ebeam L3 energy
@@ -31,7 +31,7 @@ publish.local=True # changeme
 # This will be shared memory for online analysis
 ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
 #ds=DataSource('shmem=psana.0:stop=no')
-uxs_det=Detector('OPAL1')
+#uxs_det=Detector('OPAL1')
 
 opal_threshold=500 # for thresholding of raw OPAL image
 
@@ -76,8 +76,8 @@ fee_gas_threshold=0.0 #in mJ
 
 #%% Now run
 # Initialisation for each core
-#Initialise UXS processor
-uxsProc=UXSDataPreProcessing()
+##Initialise UXS processor
+#uxsProc=UXSDataPreProcessing()
 # Initialise SHES processor
 processor=SHESPreProcessor(threshold=opal_threshold)
 # Initialise L3 ebeam energy processor
@@ -266,13 +266,13 @@ for nevt, evt in enumerate(ds.events()):
 
         continue # don't accumulate any data for the arced shot
     
-    uxs_img=uxs_det.raw(evt)
-    if uxs_img is None:
-        print 'No UXS image, continuing to next event'
-        continue
+    #uxs_img=uxs_det.raw(evt)
+    #if uxs_img is None:
+    #    print 'No UXS image, continuing to next event'
+    #    continue
 
-    uxs_data,_=uxsProc.StandardAnalysis(uxs_img)
-    uxs_pos1, uxs_int1, uxs_pos2, uxs_int2=uxs_data[0], uxs_data[2], uxs_data[3], uxs_data[5]
+    #uxs_data,_=uxsProc.StandardAnalysis(uxs_img)
+    #uxs_pos1, uxs_int1, uxs_pos2, uxs_int2=uxs_data[0], uxs_data[2], uxs_data[3], uxs_data[5]
     
     # Estimated count rate for all spectrum and ROI
     count_estimate=x_proj.sum()/float(count_conv) 
