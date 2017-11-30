@@ -18,6 +18,8 @@ from UXSDataPreProcessing import UXSDataPreProcessing
 from psmon.plots import Image,XYPlot, MultiPlot
 from psmon import publish
 
+#publish.local = True
+
 # Some settings for saving data
 saveIterator = 0 # Iterates the filename
 savePath = "./UXSAlign/{}.out"
@@ -39,7 +41,7 @@ thread.start_new_thread(input_thread, ())
 ds = DataSource('shmem=psana.0:stop=no')
 print "Connected to shmem"
 # Testing with old data
-##ds = DataSource('exp=amof6215:run=158')
+#ds = DataSource('exp=amof6215:run=158')
 print DetNames()
 
 # UXS Camera
@@ -49,7 +51,7 @@ opal_det = Detector('OPAL1')
 ebeam = Detector('EBeam')
 
 # Accumulate frames in a circularbuffer
-numframes = 500
+numframes = 1000
 
 # Keep numframes in a 3D matrix
 images = np.zeros((1024, 1024, numframes))
@@ -74,44 +76,29 @@ for nevt, evt in enumerate(ds.events()):
     opal_raw = opal_det.raw(evt)
     if opal_raw is None:
         print "Opal_raw was None"
-        pass
         continue
     
     # Reading the EBeam data, only for help while calibrating
     ebeamdata = ebeam.get(evt)
     if ebeamdata is None:
-        #print "Ebeamdata was None"
-        pass
         photonenergy = 0
     if ebeamdata is not None:
-        # TODO Shall we change to ebeamdata.ebeamL3Energy() ?
+        # TODO Change to ebeamdata.ebeamL3Energy()
         photonenergy = ebeamdata.ebeamPhotonEnergy()
     # Set the metadata
     metadata[frameidx] = "{}, PhEn: {}, {}".format(frameidx, photonenergy, str(evt.get(EventId)))
     
-    #### Make sure orientation is correct as soon as we get first data
-    #opal_raw = np.rot90(opal_raw.copy())
+    #opal_raw = np.rot90(opal_raw.copy()) # Do not rotate on LR25!
     uxspre = UXSDataPreProcessing(opal_raw.copy()) ## TODO only copy here if needed
-    #uxspre.FilterImage() # TODO change filtering
-    uxspre.CalculateProjection()
-    # Copy here instead of standard analysis because it cuts the .wf
-    spectrum = uxspre.wf.copy()
-    energyscale = uxspre.energyscale.copy()
-    fitresults = uxspre.StandardAnalysis()
-    debug = False
-    if debug:
-        # Add something to look at
-        uxspre.AddFakeImageSignal(center=200, curvature=450)
-        funcurve = 450+100*(frameidx/numframes)
-        uxspre.AddFakeImageSignal(center=600, curvature=funcurve)
-    
+    #opal = uxspre.FilterImage()
+    energyscale = uxspre.energyscale
+    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(True)
     
     # Make the accumulation
     # TODO make sure this don't accumulate the floating point error
     accimage -= images[:,:,frameidx]
     images[:,:,frameidx] = uxspre.image
     accimage += images[:,:,frameidx]
-    #accimage = np.sum(images,axis=2) # Alternate slower method
     
     # Add spectrum to circular buffer
     spectra[:,frameidx] = spectrum
@@ -124,43 +111,28 @@ for nevt, evt in enumerate(ds.events()):
         # Calculate our processing speed
         speed = int(npublish/(time.time()-start))
         start = time.time()
-   
-        # Do the standard analysis to get the double gaussian fit
-        """
-        print fitresults
-
-        # Lets also plot the fit!
-        fity = np.zeros(1024)
-        if len(fitresults) > 0:
-            a1,c1,w1,a2,c2,w2 = fitresults
-            x = np.arange(0,1024)
-            fity = UXSDataPreProcessing.DoubleGaussianFunction(x,a1,c1,w1,a2,c2,w2)
-            print fity
-        """
-        # Send single plots
-        #plotimglive = Image(0, "UXS Monitor Live image {} {}Hz {}".format(frameidx, speed, metadata[frameidx]), uxspre.image)
-        #plotimgacc = Image(0, "UXS Monitor Accumulated image {} {}Hz {}".format(frameidx, speed, metadata[frameidx]), summedimage)
-        #plotxylive = XYPlot(0, "UXS Monitor Live Spectrum {}".format(metadata[frameidx]), range(1024), uxspre.wf)
-        #plotxyacc = XYPlot(0, "UXS Monitor Accumulated Spectrum {}".format(metadata[frameidx]), range(1024), summedspectrum)
-
-        #publish.send("UXSMonitorLive", plotimglive)
-        #publish.send("UXSMonitorAcc", plotimgacc)
-        #publish.send("UXSMonitorLiveSpectrum", plotxylive)
-        #publish.send("UXSMonitorAccSpectrum", plotxy)
-
+        # Create a mock array for showing the fitresults
+        if sigma1 != 0 and sigma2 != 0:
+            # Double Gaussian
+            fitresults = UXSDataPreProcessing.DoubleGaussian([int1, pos1, sigma1, int2, pos2, sigma2], cutenergyscale)
+        elif sigma1 != 0:
+            # Simple gaussian
+            fitresults = UXSDataPreProcessing.Gaussian([int1, pos1, sigma1], cutenergyscale)
+        else:
+            fitresults = np.zeros(1024)
+        livetitle = """<table><tr><td>Pos1:</td><td>{:.2f}</td><td>Sigma1:</td><td>{:.2f}</td></tr>
+                              <tr><td>Pos2:</td><td>{:.2f}</td><td>Sigma2:</td><td>{:.2f}</td></tr>
+                       </table>""".format(pos1,sigma1,pos2,sigma2)
         # Send a multiplot
         plotimglive = Image(0, "Live", uxspre.image)
         plotimgacc = Image(0, "Acc", accimage)
-        plotxylive = XYPlot(0, "Live", energyscale, spectrum)
+        plotxylive = XYPlot(0, livetitle, [energyscale, cutenergyscale, cutenergyscale], [spectrum, fitresults, filtspec])
         plotxyacc = XYPlot(0, "Acc", energyscale, accspectrum)
-        ###plotxyfit = XYPlot(0, "Fit", energyscale, fity)
-
         multi = MultiPlot(0, "UXSMonitor {} Hz {}".format(speed, metadata[frameidx]), ncols=2)
         multi.add(plotimglive)
         multi.add(plotimgacc)
         multi.add(plotxylive)
         multi.add(plotxyacc)
-        ###multi.add(plotxyfit)
         publish.send("UXSMonitor", multi)
 
         # Count rate evolution over the frames.
