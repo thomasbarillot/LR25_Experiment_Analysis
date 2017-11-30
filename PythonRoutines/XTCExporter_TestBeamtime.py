@@ -15,6 +15,7 @@ sys.path.append('/reg/neh/home4/tbarillo/amolr2516/LR25_Analysis/PythonRoutines/
 import ITOFDataPreProcessing
 import UXSDataPreProcessing
 import SHESPreProcessing
+import XTCAV_Processing
 
 #### Parallel processing
 
@@ -61,13 +62,13 @@ class XTCExporter(object):
         self.ds = DataSource(self.args.exprun + \
                              ':smd:dir=/reg/d/psdm/amo/amox23616/xtc:live')
         
-        XTCAVRetrieval = ShotToShotCharacterization()
-        XTCAVRetrieval.SetEnv(self.ds.env())
+        #XTCAVRetrieval = ShotToShotCharacterization()
+        #XTCAVRetrieval.SetEnv(self.ds.env())
 
-        self.SHES  = SHES.PreProcessing.SHESPreProcessor()
+        self.SHES  = SHESPreProcessing.SHESPreProcessor()
         self.UXS = Detector(self.args.UXS)
 	self.ITOF = Detector(self.args.ITOF)	
-	self.XTCAV = Detector(self.args.XTCAV)
+	self.XTCAV = XTCAV_Processing.XTCavProcessor()
         self.EBeam = Detector(self.args.EBeam)
         self.GMD   = Detector(self.args.GMD)
         self.ENV = self.ds.env().configStore()
@@ -163,7 +164,13 @@ class XTCExporter(object):
         if iwf is not None:
             tmp=ITOFDataPreProcessing(iwf)
             itofArr[self.nsave] = tmp.StandardAnalysis()
- 	
+
+	# Get the XTCAV data
+	self.XTCAV.set_data_source(self.ds)
+	self.XTCAV.set_event(evt)
+        success=self.XTCAV.process()
+	if success==False:
+	    return 	
         # Get the environnement data 
         
         envdata=self.ENV.get(psana.Acqiris.Config)
@@ -254,7 +261,7 @@ class XTCExporter(object):
                                        'SHESwf':self.shProjArr[0:self.nsave,:].astype(np.float16), \
 				       'UXSpc':self.uxsPCArr[0:self.nsave,:].astype(np.float16),\
 				       'UXSwf':self.uxsProjArr[0:self.nsave,:].astype(np.float16),\
-                                       'ITOF':self.itofArr[0:self.nsave].astype(np.float16)\
+                                       'ITOF':self.itofArr[0:self.nsave].astype(np.float16),\
 				       'Pressure':self.sPressArr[0:self.nsave],\
 				       'GasDetector':self.gmdArr[0:self.nsave,:], \
                                        'EnvVar':self.envArr[0:self.nsave,:], \
@@ -274,5 +281,5 @@ class XTCExporter(object):
 ###############################################################################        
             
 def runclient(args):
-    client = Client(args)
+    client = XTCExporter(args)
     client.run()
