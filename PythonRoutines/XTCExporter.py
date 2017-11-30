@@ -117,7 +117,7 @@ class XTCExporter(object):
         self.TimeSt = np.zeros((self.args.nsave,))
        
 	# initialize arrays to nan 
-	self.shProjArr[:,:,:] = np.nan
+	self.shProjArr[:,:] = np.nan
 	self.uxsProjArr[:,:] = np.nan
 	self.uxsPCArr[:,:] = np.nan
 	self.itofArr[:] = np.nan
@@ -139,20 +139,22 @@ class XTCExporter(object):
             shEnergy = len(self.SHES.calib_array)
             if shEnergy is None: return
                 
-            self.ArrInit(self.UXS.raw(evt).shape[0])
+            self.ArrInit(1024)
             self.shEnergy = self.SHES.calib_array
 
 	# Get the event ID and timestamp
 	evtid = evt.get(EventId)
 	evttime = evtid.idxtime()
-	self.TimeSt[self.nsave] = evttime.time()
-
+	try:
+	    self.TimeSt[self.nsave] = evttime.time()
+	except:
+	    return
         # Get the hemisperical analyser signal data
 	lx,ly,proj = self.SHES.PreProcess(evt)
 	self.ehitsX+= lx #Xpos
         self.ehitsY+= ly#Ypos
 	self.ehitsTS += list(np.ones((len(lx)))*evttime.time()) #electron hits timestamps
-            
+        self.shProjArr[self.nsave,:]=proj   
 	# Get the Xray spectrometer analyser data
 	XrayImg=self.UXS.raw(evt)
 	if XrayImg is not None:

@@ -3,7 +3,7 @@
 # bsub -q psanaq -n 2 -o %J.log -a mympi python mpi_driver.py exp=sxrh4315:run=174
 
 #from master import runmaster
-from XTCExporter_TestBeamtime import runclient
+from XTCExporter import runclient
 
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
