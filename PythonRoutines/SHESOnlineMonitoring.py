@@ -378,4 +378,5 @@ for nevt, evt in enumerate(ds.events()):
         image_sum_slice=np.zeros((i_len, j_len))
         x_proj_sum_slice=np.zeros(j_len)
 
-        
+
+
