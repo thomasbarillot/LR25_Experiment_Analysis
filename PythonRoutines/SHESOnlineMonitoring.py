@@ -29,50 +29,49 @@ publish.local=True # changeme
 
 #%% Set parameters
 # This will be shared memory for online analysis
-ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
-#ds=DataSource('shmem=psana.0:stop=no')
+#ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
+ds=DataSource('shmem=psana.0:stop=no')
 #uxs_det=Detector('OPAL1')
 
 opal_threshold=500 # for thresholding of raw OPAL image
 
-# Define ('central') photon energy bandwidth for plotting projected 
-# electron spectrum, Andre thought maybe 2 eV bandwidth
+# Define ('central') photon energy bandwidth, taken from ebeam L3 energy,
+# for taking electron spectra for real-time plotting
+# Andre thought maybe 2 eV bandwidth
 min_cent_pe=0. # in eV
 max_cent_pe=9999. # in eV
 
 # Define lower and upper bounds of region of interest (ROI) to monitor counts in
 # these limits are shifted onto the closest pixel
-roi_lower=0 #in eV
-roi_upper=900 #in eV
+roi_lower=490 #in eV
+roi_upper=495 #in eV
+
+# Define FEE gas energy threshold for taking electron spectra for real-time
+# plotting
+fee_gas_threshold=0.1 #in mJ
 
 # Define parameters for L3 photon energy histogram 
 minhistlim_L3PhotEnergy=500 #in eV
-maxhistlim_L3PhotEnergy=560 #in eV
+maxhistlim_L3PhotEnergy=510 #in eV
 numbins_L3PhotEnergy=20
 
 # Define parameters for FEE Gas Energy histogram 
 minhistlim_FeeGasEnergy=0 # in mJ
-maxhistlim_FeeGasEnergy=2 # in mJ
+maxhistlim_FeeGasEnergy=0.4 # in mJ
 numbins_FeeGasEnergy=10
 
 # Define parameters for FEE Gas Energy/ROI Counts 2D histogram
 numbins_FEE_CountsROI_FEE=10
 minhistlim_FEE_CountsROI_FEE=0
-maxhistlim_FEE_CountsROI_FEE=2
-numbins_FEE_CountsROI_CountsROI=20
+maxhistlim_FEE_CountsROI_FEE=0.4
+numbins_FEE_CountsROI_CountsROI=10
 minhistlim_FEE_CountsROI_CountsROI=0
-maxhistlim_FEE_CountsROI_CountsROI=50
+maxhistlim_FEE_CountsROI_CountsROI=10
 
 # Other parameters
 history_len=1000 # for the projected electron spectrum and accumulated electron image
 history_len_counts=1000 # different history length for plotting the estimated counts
 refresh_rate=10 #plot every n frames
-
-#%% For arcing warning
-arc_freeze_time=0.2 # how many seconds to freeze plotting after arcing warning?
-
-# For FEE Gas detector
-fee_gas_threshold=0.0 #in mJ
 
 #%% Now run
 # Initialisation for each core
@@ -82,7 +81,7 @@ fee_gas_threshold=0.0 #in mJ
 processor=SHESPreProcessor(threshold=opal_threshold)
 # Initialise L3 ebeam energy processor
 l3Proc=L3EnergyProcessor()
-# Initialise FEE  Gas processor
+# Initialise FEE Gas processor
 feeGas=FEEGasProcessor()
 # For parallelisation
 comm = MPI.COMM_WORLD # define parallelisation object
@@ -106,7 +105,7 @@ hist_FeeGasEnergy_CountsROI = Histogram((numbins_FEE_CountsROI_FEE,minhistlim_FE
                                         maxhistlim_FEE_CountsROI_FEE),(numbins_FEE_CountsROI_CountsROI,\
                                         minhistlim_FEE_CountsROI_CountsROI,maxhistlim_FEE_CountsROI_CountsROI))
 
-# Initialise variables
+# Initialise variables which are only used by root core
 image_sum=np.zeros((i_len, j_len)) # accumulated sum of OPAL image over history_len shots
 x_proj_sum=np.zeros(j_len) # accumulated sum of projected electron spectrum over history_len shots
 good_shot_count_all=0
@@ -119,21 +118,21 @@ x_proj_sum_slice=np.zeros(j_len) # 'slice' refers to time slice, sum of projecte
 counts_buff_all=deque(maxlen=history_len_counts)
 counts_buff_roi_all=deque(maxlen=history_len_counts)
 
-image_sum_buff=deque(maxlen=1+history_len/refresh_rate)  # The first element of these is the most recent one NOT to
-x_proj_sum_buff=deque(maxlen=1+history_len/refresh_rate) # be plotted so that it can be taken away
-                                                             # from the rolling sum
-good_shot_count_buff=deque(maxlen=history_len/refresh_rate)
+image_sum_buff=deque(maxlen=1+history_len/(refresh_rate*size))  # The first element of these is the most recent one NOT to
+x_proj_sum_buff=deque(maxlen=1+history_len/(refresh_rate*size)) # be plotted so that it can be taken away
+                                                                # from the rolling sum
+good_shot_count_buff=deque(maxlen=history_len/(refresh_rate*size))
 
-hist_L3PhotEnergy_all = np.zeros(numbins_L3PhotEnergy) # array for the Histogram.values to be reduced in to
-hist_FeeGasEnergy_all = np.zeros(numbins_FeeGasEnergy) # array for the Histogram.values to be reduced in to
-hist_FeeGasEnergy_CountsROI_all = np.zeros((numbins_FEE_CountsROI_FEE, numbins_FEE_CountsROI_CountsROI)) # array
+hist_L3PhotEnergy_all = np.zeros(numbins_L3PhotEnergy)#, dtype=int32) # array for the Histogram.values to be reduced in to
+hist_FeeGasEnergy_all = np.zeros(numbins_FeeGasEnergy)#, dtype=int32) # array for the Histogram.values to be reduced in to
+hist_FeeGasEnergy_CountsROI_all = np.zeros((numbins_FEE_CountsROI_FEE, numbins_FEE_CountsROI_CountsROI))#, dtype=int32) # array
 # for the Histogram.values to be reduced in to
 
 #%% Set some variables 
 # Adjust history_len if needs be so that it is integer number of refresh_rate
-quot_a,rem_a=divmod(history_len, refresh_rate)
+quot_a,rem_a=divmod(history_len, refresh_rate*size)
 if rem_a!=0:
-    history_len=refresh_rate*quot_a+1
+    history_len=refresh_rate*size*quot_a
 
 count_conv=processor.count_conv # conversion factor from integrated signal -> number electron counts estimate
 calib_array=processor.calib_array # calibration array mapping pixels onto eV for SHES
@@ -145,11 +144,12 @@ roi_lower_act, roi_upper_act=calib_array[roi_idx_lower], calib_array[roi_idx_upp
 
 if rank==0: # initilisation for the root core only
     publish.init() # for plotting
+    ref_time=time.time() # for estimating rate of data acquisition
     print 'Monitoring counts in region between ' +str(np.round(roi_lower_act,2))+\
           ' eV - '+str(np.round(roi_upper_act,2))+' eV'
     if rem_a!=0:
         print 'For efficient monitoring of accumulated electron spectra require history_len divisible by \
-        refresh_rate, set history_len to '+str(history_len)   
+        refresh_rate*size, set history_len to '+str(history_len)   
 
     #%% Define plotting function
     def definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_roi, opal_image, (hist_L3PhotEnergy, \
@@ -172,20 +172,20 @@ if rank==0: # initilisation for the root core only
             plotshot = Image(nevt, 'Single shot, ROI marked from '+str(np.round(roi_lower_act,2))+' eV - '+\
                              str(np.round(roi_upper_act,2))+' eV', opal_image)
 
-            plotL3PhotEnergy = Hist(nevt,'Histogram of L3 \'central\' photon energies (plotting for '+str(np.round(min_cent_pe, 2))+\
+            plotL3PhotEnergy = Hist(nevt,'Histogram of L3 \'central\' photon energies (getting electron data for '+str(np.round(min_cent_pe, 2))+\
             ' eV - '+str(np.round(max_cent_pe, 2))+' eV)',  hist_L3PhotEnergy_edges[0], hist_L3PhotEnergy_all)
-            plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (plotting for above '+str(np.round(fee_gas_threshold, 2))+\
+            plotFeeGasEnergy = Hist(nevt,'Histogram of FEE gas energy (getting electron data for above '+str(np.round(fee_gas_threshold, 2))+\
             ' mJ only)',  hist_FeeGasEnergy_edges[0], hist_FeeGasEnergy_all)
             plotFeeGasEnergy_CountsROI = Image(nevt,'Histogram of FEE gas energy vs ROI ('+str(np.round(roi_lower_act,2))+' eV - '+\
                                               str(np.round(roi_upper_act,2))+' eV) counts', hist_FeeGasEnergy_CountsROI, \
-                                              hist_FeeGasEnergy_CountsROI_edges[0], hist_FeeGasEnergy_CountsROI_edges[1])
+                                              hist_FeeGasEnergy_CountsROI_edges[1], hist_FeeGasEnergy_CountsROI_edges[0])
 
             return plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, plotFeeGasEnergy_CountsROI
 
     def sendPlots(x_proj_sum, image_sum, counts_buff, counts_buff_roi, opal_image, (hist_L3PhotEnergy, \
                   hist_L3PhotEnergy_edges), (hist_FeeGasEnergy, hist_FeeGasEnergy_edges), 
                   (hist_FeeGasEnergy_CountsROI, hist_FeeGasEnergy_CountsROI_edges), nevt, numshotsforacc,\
-                  good_shot_count_pcage):
+                  good_shot_count_pcage, speed):
             plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, \
             plotFeeGasEnergy_CountsROI=\
             definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_roi, opal_image, (hist_L3PhotEnergy, \
@@ -205,7 +205,7 @@ if rank==0: # initilisation for the root core only
     def sendMultiPlot(x_proj_sum, image_sum, counts_buff, counts_buff_roi, opal_image, (hist_L3PhotEnergy, \
                     hist_L3PhotEnergy_edges), (hist_FeeGasEnergy, hist_FeeGasEnergy_edges), 
                     (hist_FeeGasEnergy_CountsROI, hist_FeeGasEnergy_CountsROI_edges), nevt, numshotsforacc,\
-                     good_shot_count_pcage):
+                     good_shot_count_pcage, speed):
             plotxproj, plotcumimage, plotcounts, plotcountsregint, plotshot, plotL3PhotEnergy, plotFeeGasEnergy, \
             plotFeeGasEnergy_CountsROI=\
             definePlots(x_proj_sum, image_sum, counts_buff, counts_buff_roi, opal_image, (hist_L3PhotEnergy, \
@@ -213,7 +213,7 @@ if rank==0: # initilisation for the root core only
                     (hist_FeeGasEnergy_CountsROI, hist_FeeGasEnergy_CountsROI_edges), nevt, numshotsforacc, \
                     good_shot_count_pcage)
             # Define multiplot
-            multi = MultiPlot(nevt, 'SHES Online Monitoring', ncols=3)
+            multi = MultiPlot(nevt, 'SHES Online Monitoring, running at ~'+str(np.round(speed, 1))+' Hz', ncols=3)
             # Publish plots
             multi.add(plotshot)
             multi.add(plotcounts)
@@ -231,18 +231,18 @@ good_shot_count=0 # FEE gas energy and photon energy within range to take electr
 
 # Now begin looping over events
 for nevt, evt in enumerate(ds.events()):
-    if nevt%size!=rank: continue # each core only processes runs it needs
+    if nevt%size!=rank: continue # each core only processes its own runs
     gather_electrons=True
     fee_gas_energy=feeGas.ShotEnergy(evt)
     cent_pe=l3Proc.CentPE(evt)
 
     # Check data exists
     if fee_gas_energy is None:
-        print 'No FEE gas energy, continuing to next event'        
+        print 'FEE gas energy is None, continuing to next event'        
         continue
 
     if cent_pe is None:
-        print 'No L3 e-beam energy, continuing to next event'
+        print 'L3 e-beam energy is None, continuing to next event'
         continue
     
     # If data exists, fill histograms
@@ -252,7 +252,7 @@ for nevt, evt in enumerate(ds.events()):
     opal_image, x_proj, arced=processor.OnlineProcess(evt)
 
     if opal_image is None:
-        print 'No SHES image, continuing to next event'
+        print 'SHES OPAL image is None, continuing to next event'
         continue
 
     if arced:
@@ -328,6 +328,12 @@ for nevt, evt in enumerate(ds.events()):
         counts_buff=np.zeros((refresh_rate,2)) # reset to 0
         counts_buff_roi=np.zeros((refresh_rate,2)) # reset to 0
 
+        hist_L3PhotEnergy = Histogram((numbins_L3PhotEnergy,minhistlim_L3PhotEnergy,maxhistlim_L3PhotEnergy))
+        hist_FeeGasEnergy = Histogram((numbins_FeeGasEnergy,minhistlim_FeeGasEnergy,maxhistlim_FeeGasEnergy))
+        hist_FeeGasEnergy_CountsROI = Histogram((numbins_FEE_CountsROI_FEE,minhistlim_FEE_CountsROI_FEE,\
+                                                maxhistlim_FEE_CountsROI_FEE),(numbins_FEE_CountsROI_CountsROI,\
+                                                minhistlim_FEE_CountsROI_CountsROI,maxhistlim_FEE_CountsROI_CountsROI))
+
         rolling_count=0
 
         if rank==0:
@@ -346,9 +352,9 @@ for nevt, evt in enumerate(ds.events()):
             if len(x_proj_sum_buff)==x_proj_sum_buff.maxlen:
                 image_sum-=image_sum_buff[0] # don't pop, let the deque with finite maxlen
                 x_proj_sum-=x_proj_sum_buff[0] # take care of that itself
-                numshotsforacc=(len(x_proj_sum_buff)-1)*refresh_rate
+                numshotsforacc=(len(x_proj_sum_buff)-1)*refresh_rate*size
             else:
-                numshotsforacc=len(x_proj_sum_buff)*refresh_rate
+                numshotsforacc=len(x_proj_sum_buff)*refresh_rate*size
             
             # Ensure that the counts buffer is filled in the correct order and fill it
             counts_buff_tosort=np.concatenate(counts_buff_toappend)
@@ -356,15 +362,21 @@ for nevt, evt in enumerate(ds.events()):
 
             counts_buff_roi_tosort=np.concatenate(counts_buff_roi_toappend)
             counts_buff_roi_all+=counts_buff_roi_tosort[np.argsort(counts_buff_roi_tosort[:,0])][:,1].tolist()
+   
+            ref_time_update=time.time()
+            speed=refresh_rate*size/float(ref_time_update-ref_time) # estimate of rate of data acquisition
+            ref_time=ref_time_update
              
             sendMultiPlot(x_proj_sum, image_sum, counts_buff_all, counts_buff_roi_all, opal_image, \
                           (hist_L3PhotEnergy_all, hist_L3PhotEnergy.edges), (hist_FeeGasEnergy_all, \
                           hist_FeeGasEnergy.edges), (hist_FeeGasEnergy_CountsROI_all, hist_FeeGasEnergy_CountsROI.edges), \
-                          nevt, numshotsforacc, good_shot_count_pcage)
+                          nevt, numshotsforacc, good_shot_count_pcage, speed)
+            #print 'I just tried to plot'
 
         # Reset these to zero on all cores (to be sure...!)
         good_shot_count_all=0
         image_sum_slice=np.zeros((i_len, j_len))
         x_proj_sum_slice=np.zeros(j_len)
 
-        
+
+
