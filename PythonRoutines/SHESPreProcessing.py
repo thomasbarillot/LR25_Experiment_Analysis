@@ -15,7 +15,7 @@ import cv2 # may be needed for the perspective transform that Andre does, don't
 #%% For SHES
 # Define detector
 det_name='OPAL3' #TODO is this right for the Scienta?
-calib_array=np.arange(714)
+calib_array=np.linspace(450, 510, 714)
 
 # Define estimated conversion rate from integrated (after thresholding) signal
 # to electron counts
@@ -142,7 +142,7 @@ class SHESPreProcessor(object):
         'This is the standard pre-processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
-            return [np.nan], [np.nan], np.nan
+            return [np.nan], [np.nan], np.nan, np.nan
         
         raw_x_proj=self.XProj(self.PerspectiveTransform(np.copy(opal_image))) # not thresholded, for covariance
                                                                                # TODO if cv2.warpPerspective doesn't 
@@ -162,7 +162,7 @@ class SHESPreProcessor(object):
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
-            return None, None, None, None # returns NoneTypes
+            return None, None, None # returns NoneTypes
 
         opal_image=self.Threshold(opal_image)
         arced=self.ArcCheck(opal_image) # Andre does arc checking on the
@@ -173,6 +173,22 @@ class SHESPreProcessor(object):
         x_proj=self.XProj(opal_image)
         
         return opal_image, x_proj, arced
+    
+    def CalibProcess(self, event, inPix=True):
+        'For Vernier scan calbration'
+        centers,_=self.FindComs(event)
+        return self.Moments(event), len(centers)
+
+    def Moments(self, event, inPix=True):
+        opal_image=self.GetRawImg(event)
+        arr=self.XProj(self.DiscardBorder(self.PerspectiveTransform(self.Threshold(opal_image))))
+        if np.count_nonzero(arr)==0:
+            return 0,0
+        bins=np.arange(self.calib_array.shape[0]) if inPix else self.calib_array
+        mean  = np.average(bins,weights=arr)
+        var   = np.average((bins-mean)**2,weights=arr)
+        sdev  = np.sqrt(var)
+        return mean, sdev
 
     @staticmethod #_denote to be called from inside class only, not visible to the API
     def MakeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):

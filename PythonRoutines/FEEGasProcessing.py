@@ -17,3 +17,4 @@ class FEEGasProcessor(object):
 
         #+fee_gas.f_13_ENRC()+fee_gas.f_14_ENRC())/float(4) 
         # there are 4 detectors in all, can average over however many
+        # but as of 20171130 the other two do not appear to be working
