@@ -226,9 +226,9 @@ class UXSDataPreProcessing:
         """
         for peak, sigma in zip(peaks, sigmas)[:]:
             if peak < energyscale[0] or peak > energyscale[-1]:
-                print "Bad Peak"
                 peaks.remove(peak)
-                sigmas.remove(sigma) 
+                sigmas.remove(sigma)
+        pos1 = pos2 = height1 = height2 = sigma1 = sigma2 = np.nan
         if len(peaks) == 1:
             # Fit single gaussain
             pos1 = peaks[0]
@@ -236,9 +236,6 @@ class UXSDataPreProcessing:
             pos1idx = UXSDataPreProcessing._FindNearestIdx(energyscale, pos1)
             p = UXSDataPreProcessing.GaussianFit(energyscale, data, data[pos1idx], pos1, sigmas[0])
             height1, pos1, sigma1 = p
-            height2, pos2, sigma2 = 0,0,0
-            int1 = height1
-            int2 = 0
         elif len(peaks) == 2:
             # Fit double Gaussian
             pos1idx = UXSDataPreProcessing._FindNearestIdx(energyscale, peaks[0])
@@ -246,11 +243,6 @@ class UXSDataPreProcessing:
             p = UXSDataPreProcessing.DoubleGaussianFit(
                             energyscale, data, data[pos1idx], peaks[0], sigmas[0], data[pos2idx], peaks[1], sigmas[1])
             height1, pos1, sigma1, height2, pos2, sigma2 = p
-            int1, int2 = height1, height2
-        else:
-            pos1 = pos2 = 0
-            int1 = int2 = 0
-            height1 = height2 = 0
         return height1, pos1, sigma1, height2, pos2, sigma2
 
     @staticmethod
@@ -291,10 +283,9 @@ class UXSDataPreProcessing:
 
         ## Peakfinding
         # Find peaks by method of moments above threshold
-        peaks, sigmas =  self.DetectPeaks(energyscale, wf)
+        peaks, sigmas =  self.DetectPeaks(energyscale, wf, threshold=0.5)
         # Fit single or double gaussian peaks
         height1, pos1, sigma1, height2, pos2, sigma2 = self.DoPeakFit(energyscale, wf, peaks, sigmas)
-        # TODO indicate if we have one or two peaks
         # TODO integrate instead of just returning height
         int1 = height1
         int2 = height2

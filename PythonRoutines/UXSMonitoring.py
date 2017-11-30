@@ -41,7 +41,8 @@ thread.start_new_thread(input_thread, ())
 ds = DataSource('shmem=psana.0:stop=no')
 print "Connected to shmem"
 # Testing with old data
-#ds = DataSource('exp=amof6215:run=158')
+#ds = DataSource('exp=amof6215:run=158') # 2015 beamtime
+#ds = DataSource('exp=amox23616:run=86') # Ghost imaging
 print DetNames()
 
 # UXS Camera
@@ -112,10 +113,10 @@ for nevt, evt in enumerate(ds.events()):
         speed = int(npublish/(time.time()-start))
         start = time.time()
         # Create a mock array for showing the fitresults
-        if sigma1 != 0 and sigma2 != 0:
+        if sigma1 != np.nan and sigma2 != np.nan:
             # Double Gaussian
             fitresults = UXSDataPreProcessing.DoubleGaussian([int1, pos1, sigma1, int2, pos2, sigma2], cutenergyscale)
-        elif sigma1 != 0:
+        elif sigma1 != np.nan:
             # Simple gaussian
             fitresults = UXSDataPreProcessing.Gaussian([int1, pos1, sigma1], cutenergyscale)
         else:
