@@ -27,8 +27,8 @@ publish.local=True # changeme
  
 #%% Set parameters
 # This will be shared memory for online analysis
-#ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
-ds = DataSource('shmem=psana.0:stop=no')
+ds=DataSource("exp=AMO/amox23616:run=86:smd:dir=/reg/d/psdm/amo/amox23616/xtc:live")
+#ds=DataSource('shmem=psana.0:stop=no')
 
 opal_threshold=500 # for thresholding of raw OPAL image
 
@@ -83,7 +83,7 @@ feeGas=FEEGasProcessor()
 comm = MPI.COMM_WORLD # define parallelisation object
 rank = comm.Get_rank() # which core is script being run on
 size = comm.Get_size() # no. of CPUs being used
-print 'I\m alive! ('+str(rank)+')'
+print 'Core #'+str(rank)+' reporting for duty'
 
 # Extract shape of arrays which SHES processor will return
 _,j_len,i_len=processor.pers_trans_params # for specified x_len_param/y_len_param in SHESPreProcessor,
@@ -101,7 +101,7 @@ hist_FeeGasEnergy_CountsROI = Histogram((numbins_FEE_CountsROI_FEE,minhistlim_FE
                                         maxhistlim_FEE_CountsROI_FEE),(numbins_FEE_CountsROI_CountsROI,\
                                         minhistlim_FEE_CountsROI_CountsROI,maxhistlim_FEE_CountsROI_CountsROI))
 
-# Initialise variables only used by root
+# Initialise variables
 image_sum=np.zeros((i_len, j_len)) # accumulated sum of OPAL image over history_len shots
 x_proj_sum=np.zeros(j_len) # accumulated sum of projected electron spectrum over history_len shots
 good_shot_count_all=0
@@ -110,6 +110,7 @@ image_sum_slice=np.zeros((i_len, j_len)) # 'slice' refers to time slice, sum of 
                                              # into this
 x_proj_sum_slice=np.zeros(j_len) # 'slice' refers to time slice, sum of projected electron spectra from each 
                                      # core is reduced into this
+
 counts_buff_all=deque(maxlen=history_len_counts)
 counts_buff_roi_all=deque(maxlen=history_len_counts)
 
@@ -152,7 +153,7 @@ if rank==0: # initilisation for the root core only
                     good_shot_count_pcage):
             # Define plots
             plotxproj = XYPlot(nevt,'Accumulated electron spectrum from good shots ('+str(np.round(good_shot_count_pcage, 2))+\
-                               '%) over past '+str(numshotsforacc)+' shots', np.arange(x_proj_sum.shape[0]), x_proj_sum)
+                               '%) over past '+str(numshotsforacc)+' shots', calib_array, x_proj_sum)
             plotcumimage = Image(nevt, 'Accumulated sum of good shots ('+str(np.round(good_shot_count_pcage, 2))+\
                                  '%) over past '+str(numshotsforacc)+' shots', image_sum)
             plotcounts = XYPlot(nevt,'Estimated number of identified electron counts over past '+ \
@@ -286,30 +287,27 @@ for nevt, evt in enumerate(ds.events()):
 
     if gather_electrons:
         # Only gather electron data if FEE gas energy and photon energy within specified range
-        #print rolling_count
         image_buff[rolling_count-1]=opal_image # rolling_count has been incremented already
         x_proj_buff[rolling_count-1]=x_proj    # so fill these with rolling_count-1
         good_shot_count+=1
 
     if rolling_count==refresh_rate:
-
+        # Reduce all the sums to the sum on the root core. First histograms which are never reset.
         comm.Reduce(hist_L3PhotEnergy.values, hist_L3PhotEnergy_all, root=0) # array onto array
         comm.Reduce(hist_FeeGasEnergy.values, hist_FeeGasEnergy_all, root=0) # array onto array
         comm.Reduce(hist_FeeGasEnergy_CountsROI.values, hist_FeeGasEnergy_CountsROI_all, root=0)
         # array onto array
 
-        good_shot_count_all=comm.reduce(good_shot_count, root=0) #syntax is different for no reason
-        # Reduce all the sums to the sum on the root core     
+        #Now the ones which are going to be reset
+        good_shot_count_all=comm.reduce(good_shot_count, root=0) # syntax is different for 
+                                                                 # reduce() vs Reduce()     
         comm.Reduce(image_buff.sum(axis=0), image_sum_slice, root=0)
         comm.Reduce(x_proj_buff.sum(axis=0), x_proj_sum_slice, root=0)
-        # print image_buff.sum(axis=0).sum().sum()
-
+        # gather() creates list of lists which will then be concatenated
         counts_buff_toappend=comm.gather(counts_buff, root=0)
         counts_buff_roi_toappend=comm.gather(counts_buff_roi, root=0)     
 
-        # Reset
-        rolling_count=0
-
+        # Now reset the variables which should be
         good_shot_count=0
         image_buff=np.zeros((refresh_rate, i_len, j_len))
         x_proj_buff=np.zeros((refresh_rate, j_len))
@@ -317,8 +315,9 @@ for nevt, evt in enumerate(ds.events()):
         counts_buff=np.zeros((refresh_rate,2)) # reset to 0
         counts_buff_roi=np.zeros((refresh_rate,2)) # reset to 0
 
+        rolling_count=0
+
         if rank==0:
-            # print good_shot_count_all
             # Don't care so much that these are in order because we don't plot
             # them shot-to-shot
             image_sum_buff.append(image_sum_slice) 
@@ -332,31 +331,27 @@ for nevt, evt in enumerate(ds.events()):
             # Only take away from the rolling sum if we have had more than the max history
             # length of shots
             if len(x_proj_sum_buff)==x_proj_sum_buff.maxlen:
-                #print 'hit max length' 
                 image_sum-=image_sum_buff[0] # don't pop, let the deque with finite maxlen
                 x_proj_sum-=x_proj_sum_buff[0] # take care of that itself
                 numshotsforacc=(len(x_proj_sum_buff)-1)*refresh_rate
             else:
                 numshotsforacc=len(x_proj_sum_buff)*refresh_rate
-             
-            # Reset these to zero
-            image_sum_slice=np.zeros((i_len, j_len))
-            x_proj_sum_slice=np.zeros(j_len)
-            good_shot_count_all=0
             
-            # Ensure that the counts buffer is filled in the correct order
+            # Ensure that the counts buffer is filled in the correct order and fill it
             counts_buff_tosort=np.concatenate(counts_buff_toappend)
-            #print counts_buff_tosort
             counts_buff_all+=counts_buff_tosort[np.argsort(counts_buff_tosort[:,0])][:,1].tolist()
-            # print counts_buff_tosort[np.argsort(counts_buff_tosort[:,0])][:,0].tolist()
+
             counts_buff_roi_tosort=np.concatenate(counts_buff_roi_toappend)
             counts_buff_roi_all+=counts_buff_roi_tosort[np.argsort(counts_buff_roi_tosort[:,0])][:,1].tolist()
              
-            sendPlots(x_proj_sum, image_sum, counts_buff_all, counts_buff_roi_all, opal_image, \
+            sendMultiPlot(x_proj_sum, image_sum, counts_buff_all, counts_buff_roi_all, opal_image, \
                           (hist_L3PhotEnergy_all, hist_L3PhotEnergy.edges), (hist_FeeGasEnergy_all, \
                           hist_FeeGasEnergy.edges), (hist_FeeGasEnergy_CountsROI_all, hist_FeeGasEnergy_CountsROI.edges), \
                           nevt, numshotsforacc, good_shot_count_pcage)
 
-        
+        # Reset these to zero on all cores (to be sure...!)
+        good_shot_count_all=0
+        image_sum_slice=np.zeros((i_len, j_len))
+        x_proj_sum_slice=np.zeros(j_len)
 
         
