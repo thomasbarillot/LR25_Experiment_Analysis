@@ -41,7 +41,8 @@ thread.start_new_thread(input_thread, ())
 ds = DataSource('shmem=psana.0:stop=no')
 print "Connected to shmem"
 # Testing with old data
-#ds = DataSource('exp=amof6215:run=158')
+#ds = DataSource('exp=amof6215:run=158') # 2015 beamtime
+#ds = DataSource('exp=amox23616:run=86') # Ghost imaging
 print DetNames()
 
 # UXS Camera
@@ -56,6 +57,11 @@ numframes = 1000
 # Keep numframes in a 3D matrix
 images = np.zeros((1024, 1024, numframes))
 spectra = np.zeros((1024, numframes))
+sigmamonitor = [np.zeros(numframes), np.zeros(numframes)]
+posmonitor = [np.zeros(numframes), np.zeros(numframes)]
+heightmonitor = [np.zeros(numframes), np.zeros(numframes)]
+intensitymonitor = np.zeros(numframes)
+filtintensitymonitor = np.zeros(numframes)
 
 # Keep a circularbuffer of metadata
 metadata = ["" for frame in range(numframes)]
@@ -86,12 +92,11 @@ for nevt, evt in enumerate(ds.events()):
         # TODO Change to ebeamdata.ebeamL3Energy()
         photonenergy = ebeamdata.ebeamPhotonEnergy()
     # Set the metadata
-    metadata[frameidx] = "{}, PhEn: {}, {}".format(frameidx, photonenergy, str(evt.get(EventId)))
+    metadata[frameidx] = "Frame: {}, PhEn: {}, {}".format(frameidx, photonenergy, str(evt.get(EventId)))
     
     #opal_raw = np.rot90(opal_raw.copy()) # Do not rotate on LR25!
     uxspre = UXSDataPreProcessing()
-    ## TODO only copy here if needed
-    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(opal_raw.copy(), True)
+    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(opal_raw, True)
     energyscale = uxspre.energyscale
     
     # Make the accumulation
@@ -104,7 +109,23 @@ for nevt, evt in enumerate(ds.events()):
     spectra[:,frameidx] = spectrum
     # Sum all accumulated spectra
     accspectrum = np.sum(spectra,axis=1)
-   
+
+    # Pos monitor
+    posmonitor[0][frameidx] = pos1
+    posmonitor[1][frameidx] = pos2
+
+    # Sigma monitor
+    sigmamonitor[0][frameidx] = sigma1
+    sigmamonitor[1][frameidx] = sigma2
+
+    # Heightmonitor
+    heightmonitor[0][frameidx] = int1
+    heightmonitor[1][frameidx] = int2
+
+    # Intensity monitor
+    intensitymonitor[frameidx] = np.sum(spectrum)
+    filtintensitymonitor[frameidx] = np.sum(filtspec)
+
     # Only publish every nth frame
     npublish = 5
     if frameidx%npublish == 0:
@@ -112,10 +133,10 @@ for nevt, evt in enumerate(ds.events()):
         speed = int(npublish/(time.time()-start))
         start = time.time()
         # Create a mock array for showing the fitresults
-        if sigma1 != 0 and sigma2 != 0:
+        if not np.isnan(sigma1) and not np.isnan(sigma2):
             # Double Gaussian
             fitresults = UXSDataPreProcessing.DoubleGaussian([int1, pos1, sigma1, int2, pos2, sigma2], cutenergyscale)
-        elif sigma1 != 0:
+        elif not np.isnan(sigma1):
             # Simple gaussian
             fitresults = UXSDataPreProcessing.Gaussian([int1, pos1, sigma1], cutenergyscale)
         else:
@@ -135,12 +156,19 @@ for nevt, evt in enumerate(ds.events()):
         multi.add(plotxyacc)
         publish.send("UXSMonitor", multi)
 
-        # Count rate evolution over the frames.
-        #counts = np.sum(images, axis=(0,1))
-        #counts = np.roll(counts, -frameidx)
-        #counts = scipy.ndimage.gaussian_filter1d(counts,1)
-        #plotxy = XYPlot(0, "UXS Counts {}".format(str(evt.get(EventId))), range(numframes), counts)
-        #publish.send("UXSMonitorCounts", plotxy)
+        # 2nd UXSMonitor
+        multi = MultiPlot(0, "UXSMonitor2 {} Hz {}".format(speed, metadata[frameidx]), ncols=3)
+        plotsigma = XYPlot(0, "Sigma1: {:.2f}, Sigma2: {:.2f}".format(sigma1,sigma2), 2*[range(numframes)], [np.roll(s, -frameidx-1) for s in sigmamonitor])
+        plotheight = XYPlot(0, "Height1: {:.2f}, Height2: {:.2f}".format(int1,int2), 2*[range(numframes)], [np.roll(h, -frameidx-1) for h in heightmonitor])
+        plotpos = XYPlot(0, "Pos1: {:.2f}, Pos2:{:.2f}".format(pos1,pos2), 2*[range(numframes)], [np.roll(p, -frameidx-1) for p in posmonitor])
+        plotintensity = XYPlot(0, "Intensity", range(numframes), np.roll(intensitymonitor, -frameidx-1))
+        plotfiltintensity = XYPlot(0, "Filtered Intensity", range(numframes), np.roll(filtintensitymonitor, -frameidx-1))
+        multi.add(plotsigma)
+        multi.add(plotheight)
+        multi.add(plotpos)
+        multi.add(plotintensity)
+        multi.add(plotfiltintensity)
+        publish.send("UXSMonitor2", multi)
  
     # Iterate framenumber
     frameidx += 1
