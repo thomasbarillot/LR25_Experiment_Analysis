@@ -228,7 +228,7 @@ class XTCExporter(object):
     def save(self):
         if self.args.save == True:
              
-            runnumber = int(self.args.exprun[17:])
+            runnumber = int(self.args.exprun[18:])
             filename = 'amolr2516_r' + str(runnumber).zfill(4) + '_' + \
                         str(rank).zfill(3) + '_' + str(self.filenum).zfill(3)
                      
