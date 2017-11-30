@@ -62,7 +62,7 @@ class SHESPreProcessor(object):
         self.pers_trans_params=M, x_len_param, y_len_param #perspective transform parameters
         self.poly_fit_params=poly_fit_params
         self.arcThresh=arcThresh
-        self.arcMask=makeCircles((innerR, outerR), (xc, yc))
+        self.arcMask=self.MakeCircles((innerR, outerR), (xc, yc))
         self.calib_array=calib_array
         
     def ArcCheck(self, opal_image):
@@ -157,6 +157,10 @@ class SHESPreProcessor(object):
 
         return list(xs), list(ys), x_proj
 
+    def LuddePhotEnergy(self):
+        'Look for shifting of edge and return photon energy'
+        pass
+
     def OnlineProcess(self, event):
         'This is the standard online processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
@@ -173,17 +177,17 @@ class SHESPreProcessor(object):
         
         return opal_image, x_proj, arced
 
-#%% some functions
-def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
-    'Function adapted from Andre to define mask for arcing test'
-    arcMask = np.zeros((1024, 1024), dtype=np.double) # arcing mask
-
-    for xx in range(1024):
-        for yy in range(1024):
-            rad=(xx-xc)**2+(yy-yc)**2
-            if rad >= innerR*innerR and rad <= outerR*outerR: # greater than
-                # or equal to condition should exactly recover performance for
-                # Andre's previous version
-                arcMask[xx, yy]=1
+    @staticmethod #_denote to be called from inside class only, not visible to the API
+    def MakeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
+        'Function adapted from Andre to define mask for arcing test'
+        arcMask = np.zeros((1024, 1024), dtype=np.double) # arcing mask
+   
+        for xx in range(1024):
+            for yy in range(1024):
+                rad=(xx-xc)**2+(yy-yc)**2
+                if rad >= innerR*innerR and rad <= outerR*outerR: # greater than
+                    # or equal to condition should exactly recover performance for
+                    # Andre's previous version
+                    arcMask[xx, yy]=1
             
-    return arcMask
+        return arcMask
