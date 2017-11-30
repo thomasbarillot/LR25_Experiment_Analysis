@@ -99,12 +99,6 @@ class SHESPreProcessor(object):
         # understand why #TODO understand! My best guess is that inside the cv2.warpPerspective/
         #cv2.getPerspectiveTransform functions, row becomes x-axis and col becomes y-axis
 
-    def PolyFit(self, opal_image):
-        return opal_image #TODO
- 
-    def XProj(self, opal_image):    
-        return opal_image.sum(axis=0) #TODO check this is the correct axis
-
     def Binary(self, opal_image):
         return opal_image>self.threshold
     
@@ -149,13 +143,16 @@ class SHESPreProcessor(object):
         opal_image=self.GetRawImg(event)
         if opal_image is None:
             return [np.nan], [np.nan], np.nan
-
+        
+        raw_x_proj=self.XProj(self.PerspectiveTransform(np.copy(opal_image))) # not thresholded, for covariance
+                                                                               # TODO if cv2.warpPerspective doesn't 
+                                                                               # modify in place then no need for a copy
         opal_image=self.DiscardBorder(self.PerspectiveTransform(self.Threshold(opal_image)))
 
         xs, ys=zip(*self.FindComs(opal_image)[0]) # taking already thresholded array here
         x_proj=self.XProj(opal_image)
 
-        return list(xs), list(ys), x_proj
+        return list(xs), list(ys), x_proj, raw_x_proj
 
     def LuddePhotEnergy(self):
         'Look for shifting of edge and return photon energy'
@@ -191,3 +188,7 @@ class SHESPreProcessor(object):
                     arcMask[xx, yy]=1
             
         return arcMask
+
+    @staticmethod
+    def XProj(opal_image):    
+        return opal_image.sum(axis=0) #TODO check this is the correct axis
