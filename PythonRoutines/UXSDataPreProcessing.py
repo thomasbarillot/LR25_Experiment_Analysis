@@ -246,6 +246,17 @@ class UXSDataPreProcessing:
         return height1, pos1, sigma1, height2, pos2, sigma2
 
     @staticmethod
+    def RudimentaryBackground(image):
+        """
+        Makes a rudimentary background estimation
+        based on last n rows of pixels
+        """
+        bg = np.average(image[900:1024,:], axis=0)
+        bg = bg + np.average(image[0:100,:], axis=0)
+        bg = UXSDataPreProcessing.GaussianFilter(bg, 10)/2
+        return bg
+
+    @staticmethod
     def DebugPlot(x, y, title):
         """
         Publishes a debugspectrum
@@ -264,14 +275,19 @@ class UXSDataPreProcessing:
         # Fix the image
         self.image = image
         energyscale = self.energyscale
+        self.CorrectImageGeometry()
+        # Find a rudimentary background
+        # Todo get real dark frames
+        bg = self.RudimentaryBackground(image)
         # Set everything outside region to 0
         #self.MaskImage(xmin=520, xmax=525, ymin=0, ymax=1024)
-        self.CorrectImageGeometry()
         wf = self.CalculateProjection(self.image)
         unfilteredwf = wf.copy()
         # Cut to length
         #wf, energyscale = self.CutToLength(wf, self.energyscale, [10,400]) # Pixelvalues
-        
+       
+        # Make rudimentary background supression
+        wf = wf-1024*bg
         ## Smoothing
         wf = self.GaussianFilter(wf, 5)
         #wf = self.RemoveNegative(wf)
