@@ -104,7 +104,7 @@ class XTCavProcessor:
                 print('Reconstruction agreement insufficient')
             return False
         
-        t = t.squeeze()
+        t = t.squeeze() # remove extra dimensions (i.e. bunch index)
         power = power.squeeze()
         t_range = t.max() - t.min()
         if use_abs:
@@ -112,9 +112,10 @@ class XTCavProcessor:
         if smoothing:
             power = smooth(power, smoothing)
         
-        #Find where the trace actually has support
+        # Find where the trace actually has support
         thresh = power.max()*0.05
         power_nonz = (power > thresh).nonzero()
+        # First and last points in time where power > thresh
         t_lims = (t[power_nonz[0][0]], t[power_nonz[0][-1]])
         trace_centre = np.mean(t_lims)
         if verbose:
@@ -122,18 +123,20 @@ class XTCavProcessor:
                 t_lims[0], t_lims[1], trace_centre))
 
         ## Moments method
+        # Time and power arrays on both sides of trace:
         (t_left, t_right) = (t[t <= trace_centre], t[t >= trace_centre])
         (power_left, power_right) = (power[t <= trace_centre], power[t >= trace_centre])
-
+	    # Centre of gravity for pulse centre
         moment_l = moment(t_left, power_left)
         moment_r = moment(t_right, power_right)
 
+        # Second moment (variance) for fwhm width:
         fwhm_l = fwhm_from_var(t_left, power_left)
         fwhm_r = fwhm_from_var(t_right, power_right)
         
+        # Check that we haven't got nonsense for the moments or widths:
         if any(np.isnan([moment_l, moment_r, fwhm_l, fwhm_r])):
             return False
-
         if moment_l < t.min() or moment_r > t.max():
             return False
 
@@ -142,6 +145,7 @@ class XTCavProcessor:
         ## Threshold method for pulse duration
         # Better estimate of centre of trace:
         trace_centre = np.mean([moment_l, moment_r])
+        # Sometimes goes wrong if the trace is messy, checking for that
         if trace_centre < t.min() or trace_centre > t.max():
             return False
         (t_left, t_right) = (t[t <= trace_centre], t[t >= trace_centre])
@@ -267,7 +271,7 @@ if __name__ == '__main__':
     parser.add_argument('datasource', help='Data source string (e.g. exp=AMO/amolr2516:run=55)')
     parser.add_argument('-o', dest='output', help='Output file name')
     args = parser.parse_args()
-    if args.ouput is None:
+    if args.output is None:
         exp_matches = re.findall('exp=AMO/[0-9a-z]+', args.datasource)
         run_matches = re.findall('run=[0-9]+', args.datasource)
         if not run_matches or not exp_matches:
@@ -278,3 +282,4 @@ if __name__ == '__main__':
     else:
         out_file = args.output
     process_run_mpi(args.datasource, '/reg/d/psdm/amo/amon0816/calib', out_file)
+

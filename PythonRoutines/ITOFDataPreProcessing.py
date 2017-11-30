@@ -27,7 +27,7 @@ from psmon.plots import XYPlot,Image
 
 class ITOFDataPreProcessing():
 
-    def __init___(self,wf):
+    def __init__(self,wf):
 	self.wf = -wf
 	self.iyield = 0
 	self.offset = 0	

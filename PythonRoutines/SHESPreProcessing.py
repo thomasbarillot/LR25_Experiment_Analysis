@@ -116,10 +116,9 @@ class SHESPreProcessor(object):
 
         centers, labelled = self.FindComs(opal_image)
         if centers==[(np.nan, np.nan)]:
-           return [(np.nan, np.nan)], [(np.nan, np.nan)]
+            return [(np.nan, np.nan)], [(np.nan, np.nan)]
         widths = []
         for i in range(len(centers)):
-        
             c = centers[i]
             r_slice = labelled[int(c[0]),:]
             zx = np.where( np.abs(r_slice - np.roll(r_slice, 1)) == i+1 )[0]
@@ -142,7 +141,7 @@ class SHESPreProcessor(object):
         'This is the standard pre-processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
-            return [np.nan], [np.nan], np.nan
+            return [np.nan], [np.nan], np.nan, np.nan
         
         raw_x_proj=self.XProj(self.PerspectiveTransform(np.copy(opal_image))) # not thresholded, for covariance
                                                                                # TODO if cv2.warpPerspective doesn't 
