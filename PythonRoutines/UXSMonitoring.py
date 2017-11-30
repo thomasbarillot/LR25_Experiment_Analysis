@@ -113,10 +113,10 @@ for nevt, evt in enumerate(ds.events()):
         speed = int(npublish/(time.time()-start))
         start = time.time()
         # Create a mock array for showing the fitresults
-        if sigma1 != np.nan and sigma2 != np.nan:
+        if not np.isnan(sigma1) and not np.isnan(sigma2):
             # Double Gaussian
             fitresults = UXSDataPreProcessing.DoubleGaussian([int1, pos1, sigma1, int2, pos2, sigma2], cutenergyscale)
-        elif sigma1 != np.nan:
+        elif not np.isnan(sigma1):
             # Simple gaussian
             fitresults = UXSDataPreProcessing.Gaussian([int1, pos1, sigma1], cutenergyscale)
         else:
