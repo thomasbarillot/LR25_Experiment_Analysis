@@ -15,6 +15,7 @@ sys.path.append('/reg/neh/home4/tbarillo/amolr2516/LR25_Analysis/PythonRoutines/
 import ITOFDataPreProcessing
 import UXSDataPreProcessing
 import SHESPreProcessing
+import XTCAV_Processing
 
 #### Parallel processing
 
@@ -59,29 +60,33 @@ class XTCExporter(object):
                 
     def DetInit(self):
         self.ds = DataSource(self.args.exprun + \
-                             ':smd:dir=/reg/d/psdm/amo/amox23616/xtc:live')
+                             ':smd:dir=/reg/d/psdm/amo/amolr2516/xtc:live')
         
-        XTCAVRetrieval = ShotToShotCharacterization()
-        XTCAVRetrieval.SetEnv(self.ds.env())
+        #XTCAVRetrieval = ShotToShotCharacterization()
+        #XTCAVRetrieval.SetEnv(self.ds.env())
 
-        #self.SHES = Detector(self.args.SHES)
-	self.SHES=SHESPreProcessor()
+        self.SHES  = SHESPreProcessing.SHESPreProcessor()
         self.UXS = Detector(self.args.UXS)
 	self.ITOF = Detector(self.args.ITOF)	
-	self.XTCAV = Detector(self.args.XTCAV)
+	self.XTCAV = XTCAV_Processing.XTCavProcessor()
         self.EBeam = Detector(self.args.EBeam)
         self.GMD   = Detector(self.args.GMD)
         self.ENV = self.ds.env().configStore()
-	self.PRESS = Detector(self.args.PRESS)
+	self.PRESS = Detector('AMO:LMP:VG:21:PRESS')
 
 ###############################################################################
 
-    def ArrInit(self,shlength,uxslength):
+    def ArrInit(self,uxslength):
 
+	
 	## SHES
 	# Scienta Hemispherical array 2D: Energy projection; index of event
+	shlength=len(self.SHES.calib_array)
+	self.shEnergy = np.zeros(shlength)
 	self.shProjArr = np.zeros((self.args.nsave,shlength))
-	self.ehits = [[],[],[]]
+	self.ehitsX = []
+	self.ehitsY = []
+	self.ehtsTS = []
 
 	## UXS
 	# XRay spectro array 2D principal components: Ampl1,pos1,FWHM1,Ampl2,pos2,FWHM2 
@@ -129,30 +134,43 @@ class XTCExporter(object):
         
     def getevtdata(self,evt):
 
-	# Call the preprocessing modules here
-
 	# Initialize the arrays
-        if not hasattr(self,'shtime'):
-            shtenergy = self.SHES.raw(evt).shape[0]
-            if shenergy is None: return
+        if not hasattr(self,'shEnergy'):
+            shEnergy = len(self.SHES.calib_array)
+            if shEnergy is None: return
                 
-            self.ArrInit(self.SHES.raw(evt).shape[0],self.UXS.raw(evt).shape[0])
-            self.shenergy = mbtime[0,:]
+            self.ArrInit(self.UXS.raw(evt).shape[0])
+            self.shEnergy = self.SHES.calib_array
+
+	# Get the event ID and timestamp
+	evtid = evt.get(EventId)
+	evttime = evtid.idxtime()
+	self.TimeSt[self.nsave] = evttime.time()
 
         # Get the hemisperical analyser signal data
+	lx,ly,proj = self.SHES.PreProcess(evt)
+	self.ehitsX+= lx #Xpos
+        self.ehitsY+= ly#Ypos
+	self.ehitsTS += list(np.ones((len(lx)))*evttime.time()) #electron hits timestamps
             
 	# Get the Xray spectrometer analyser data
 	XrayImg=self.UXS.raw(evt)
 	if XrayImg is not None:
 	    tmp=UXSDataPreProcessing()
-	    uxsPCArr[self.nsave,:]=tmp.StandardAnalysis(XrayImg)
+	    uxsPCArr[self.nsave,:],uxsProjArr[self.nsave,:]=tmp.StandardAnalysis(XrayImg)
 	# Get the ITOF data
         
 	iwf = self.ITOF.waveform(evt)[0]
         if iwf is not None:
             tmp=ITOFDataPreProcessing(iwf)
             itofArr[self.nsave] = tmp.StandardAnalysis()
- 	
+
+	# Get the XTCAV data
+	self.XTCAV.set_data_source(self.ds)
+	self.XTCAV.set_event(evt)
+        success=self.XTCAV.process()
+	if success==False:
+	    return 	
         # Get the environnement data 
         
         envdata=self.ENV.get(psana.Acqiris.Config)
@@ -177,12 +195,6 @@ class XTCExporter(object):
             
                 self.ebeamArr[self.nsave,i] = getattr(EBeamdata,par)()
                 
-        #EBeamEn = EBeamdata.ebeamL3Energy()
-        
-        evtid                   = evt.get(EventId)
-        evttime                = evtid.idxtime()
-        #get the event Id and timestamp
-        self.TimeSt[self.nsave] = evttime.time()
         
         if gmddata is not None:
             #upstream
@@ -218,17 +230,17 @@ class XTCExporter(object):
             filename = 'amolr2516_r' + str(runnumber).zfill(4) + '_' + \
                         str(rank).zfill(3) + '_' + str(self.filenum).zfill(3)
                      
-            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
+            directory_n='/reg/d/psdm/AMO/amolr2516/results/npzfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
-            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
+            directory_m='/reg/d/psdm/AMO/amolr2516/results/matfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
             if not os.path.exists(directory_n):
                 os.makedirs(directory_n)
             if not os.path.exists(directory_m):
                 os.makedirs(directory_m)
-            directory_n='/reg/d/psdm/AMO/amolr2516/ftc/npzfiles/' + 'run' + \
+            directory_n='/reg/d/psdm/AMO/amolr2516/results/npzfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
-            directory_m='/reg/d/psdm/AMO/amolr2516/ftc/matfiles/' + 'run' + \
+            directory_m='/reg/d/psdm/AMO/amolr2516/results/matfiles/' + 'run' + \
                         str(runnumber).zfill(4) + '/'
             if not os.path.exists(directory_n):
                 os.makedirs(directory_n)
@@ -237,14 +249,20 @@ class XTCExporter(object):
             
             if rank == 1:
                 print 'rank 1 writing file...'
-                
+            
+	    # Save electrons hits in one array:
+	    SHESHits=np.zeros((len(self.ehitsX),3))
+	    SHESHits[:,0]=self.ehitsX
+	    SHESHits[:,1]=self.ehitsY
+	    SHESHits[:,2]=self.ehitsTS
+
             data={'EBeamParameters':self.ebeamArr,
-                                       'SHESHits':self.[0:self.nsave,:].astype(np.float16), \
+                                       'SHESHits':self.SHESHits.astype(np.float64), \
                                        'SHESwf':self.shProjArr[0:self.nsave,:].astype(np.float16), \
-				       'UXSpc':,\
-				       'UXSwf':,\
-                                       'ITOF':self.itofArr[0:self.nsave].astype(np.float16)\
-				       'Pressure':,\
+				       'UXSpc':self.uxsPCArr[0:self.nsave,:].astype(np.float16),\
+				       'UXSwf':self.uxsProjArr[0:self.nsave,:].astype(np.float16),\
+                                       'ITOF':self.itofArr[0:self.nsave].astype(np.float16),\
+				       'Pressure':self.sPressArr[0:self.nsave],\
 				       'GasDetector':self.gmdArr[0:self.nsave,:], \
                                        'EnvVar':self.envArr[0:self.nsave,:], \
                                        'T':self.T, \
@@ -258,10 +276,10 @@ class XTCExporter(object):
             if rank == 1: print 'rank1 done with writing file.'
             self.filenum += 1
             
-        self.ArrInit(len(self.mbtime))
+        self.ArrInit(len(self.shProjArr[0,:]),len(uxsProjArr[0,:]))
 
 ###############################################################################        
             
 def runclient(args):
-    client = Client(args)
+    client = XTCExporter(args)
     client.run()
