@@ -62,7 +62,7 @@ class SHESPreProcessor(object):
         self.pers_trans_params=M, x_len_param, y_len_param #perspective transform parameters
         self.poly_fit_params=poly_fit_params
         self.arcThresh=arcThresh
-        self.arcMask=makeCircles((innerR, outerR), (xc, yc))
+        self.arcMask=self.MakeCircles((innerR, outerR), (xc, yc))
         self.calib_array=calib_array
         
     def ArcCheck(self, opal_image):
@@ -98,12 +98,6 @@ class SHESPreProcessor(object):
         # this returns an nd.array of shape (y_len_param, x_len_param), I don't
         # understand why #TODO understand! My best guess is that inside the cv2.warpPerspective/
         #cv2.getPerspectiveTransform functions, row becomes x-axis and col becomes y-axis
-
-    def PolyFit(self, opal_image):
-        return opal_image #TODO
- 
-    def XProj(self, opal_image):    
-        return opal_image.sum(axis=0) #TODO check this is the correct axis
 
     def Binary(self, opal_image):
         return opal_image>self.threshold
@@ -149,13 +143,20 @@ class SHESPreProcessor(object):
         opal_image=self.GetRawImg(event)
         if opal_image is None:
             return [np.nan], [np.nan], np.nan
-
+        
+        raw_x_proj=self.XProj(self.PerspectiveTransform(np.copy(opal_image))) # not thresholded, for covariance
+                                                                               # TODO if cv2.warpPerspective doesn't 
+                                                                               # modify in place then no need for a copy
         opal_image=self.DiscardBorder(self.PerspectiveTransform(self.Threshold(opal_image)))
 
         xs, ys=zip(*self.FindComs(opal_image)[0]) # taking already thresholded array here
         x_proj=self.XProj(opal_image)
 
-        return list(xs), list(ys), x_proj
+        return list(xs), list(ys), x_proj, raw_x_proj
+
+    def LuddePhotEnergy(self):
+        'Look for shifting of edge and return photon energy'
+        pass
 
     def OnlineProcess(self, event):
         'This is the standard online processing for the SHES OPAL arrays'
@@ -173,17 +174,21 @@ class SHESPreProcessor(object):
         
         return opal_image, x_proj, arced
 
-#%% some functions
-def makeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
-    'Function adapted from Andre to define mask for arcing test'
-    arcMask = np.zeros((1024, 1024), dtype=np.double) # arcing mask
-
-    for xx in range(1024):
-        for yy in range(1024):
-            rad=(xx-xc)**2+(yy-yc)**2
-            if rad >= innerR*innerR and rad <= outerR*outerR: # greater than
-                # or equal to condition should exactly recover performance for
-                # Andre's previous version
-                arcMask[xx, yy]=1
+    @staticmethod #_denote to be called from inside class only, not visible to the API
+    def MakeCircles((innerR, outerR)=(460, 540), (xc, yc)=(500, 460)):
+        'Function adapted from Andre to define mask for arcing test'
+        arcMask = np.zeros((1024, 1024), dtype=np.double) # arcing mask
+   
+        for xx in range(1024):
+            for yy in range(1024):
+                rad=(xx-xc)**2+(yy-yc)**2
+                if rad >= innerR*innerR and rad <= outerR*outerR: # greater than
+                    # or equal to condition should exactly recover performance for
+                    # Andre's previous version
+                    arcMask[xx, yy]=1
             
-    return arcMask
+        return arcMask
+
+    @staticmethod
+    def XProj(opal_image):    
+        return opal_image.sum(axis=0) #TODO check this is the correct axis

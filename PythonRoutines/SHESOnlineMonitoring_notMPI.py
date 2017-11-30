@@ -31,8 +31,8 @@ min_cent_pe=0. # in eV
 max_cent_pe=9999. # in eV
 
 # Define lower and upper bounds of region of interest to monitor counts in
-region_int_lower=600.6 #in eV
-region_int_upper=700.14 #in eV
+region_int_lower=0 #in eV
+region_int_upper=900 #in eV
 
 # Define parameters for L3 photon energy histogram 
 minhistlim_L3PhotEnergy=500 #in eV

@@ -144,8 +144,8 @@ class XTCExporter(object):
 	# Get the Xray spectrometer analyser data
 	XrayImg=self.UXS.raw(evt)
 	if XrayImg is not None:
-	    tmp=UXSDataPreProcessing(XrayImg)
-	    uxsPCArr[self.nsave,:]=tmp.StandardAnalysis()
+	    tmp=UXSDataPreProcessing()
+	    uxsPCArr[self.nsave,:]=tmp.StandardAnalysis(XrayImg)
 	# Get the ITOF data
         
 	iwf = self.ITOF.waveform(evt)[0]
