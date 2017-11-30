@@ -7,8 +7,13 @@ from xtcav.ShotToShotCharacterization import *
 import pypsalg
 import os
 
-#### Analysis modules
 
+
+#### Analysis modules
+sys.path.append('/reg/neh/home4/tbarillo/amolr2516/LR25_Analysis/PythonRoutines/')
+
+import ITOFDataPreProcessing
+import UXSDataPreProcessing
 
 #### Parallel processing
 
@@ -65,40 +70,46 @@ class XTCExporter(object):
         self.EBeam = Detector(self.args.EBeam)
         self.GMD   = Detector(self.args.GMD)
         self.ENV = self.ds.env().configStore()
-	self.EPICS = EpicsDetector(self.args.EPCIS,self.ds)
+	self.PRESS = Detector(self.args.PRESS)
 
 ###############################################################################
 
     def ArrInit(self,shlength,uxslength):
 
+	## SHES
 	# Scienta Hemispherical array 2D: Energy projection; index of event
-	self.shProjArr = np.zeros((shlength,self.args.nsave))
-	
-	# XRay spectro array 2D principal components: PE1,DE1,A1,PE2,DE2,A2 ; index of event
-	self.uxsPCArr = np.zeros((6,self.args.nsave))
-	# Xray spectro array 2D: Energy projection; index of event
-	self.uxsProjArr = np.zeros((uxslength,self.args.nsave))
-	
-	# micro tof: ion yield, index of event 
-	self.itofArr = np.zeros((self.args.nsave))
+	self.shProjArr = np.zeros((self.args.nsave,shlength))
+	self.ehits = [[],[],[]]
 
+	## UXS
+	# XRay spectro array 2D principal components: Ampl1,pos1,FWHM1,Ampl2,pos2,FWHM2 
+	self.uxsPCArr = np.zeros((self.args.nsave,6))
+	# Xray spectro array 2D: Energy projection
+	self.uxsProjArr = np.zeros((self.args.nsave,uxslength))
+	
+	## ITOF
+	# micro tof: ion yield
+	self.itofArr = np.zeros((self.args.nsave))
+	
+	## GMD
         # Gas detector array (6 ebeam EL3 values)
         self.gmdArr   = np.zeros((self.args.nsave,6))
+
+	## ENV
         # Acq parameters: offset and fullscale for both channels low gain: 2, high gain 1
         self.envArr   = np.zeros((1,5))
-        #
+        
+	## EBeam
         self.ebeamArr = np.zeros((self.args.nsave,21))
 
+	## EPICS
 	# Sample pressure array
 	self.sPressArr = np.zeros((self.args.nsave))
 	
         # Time stamp array         
         self.TimeSt = np.zeros((self.args.nsave,))
-        
-        # hits for blob finding 
-        self.ehits  = [[],[],[]]
-        
-        
+       
+	# initialize arrays to nan 
 	self.shProjArr[:,:,:] = np.nan
 	self.uxsProjArr[:,:] = np.nan
 	self.uxsPCArr[:,:] = np.nan
@@ -109,7 +120,7 @@ class XTCExporter(object):
         self.envArr[:,:] = np.nan
         self.TimeSt[:]    = np.nan
 	self.sPressArr[:] = np.nan
-        self.nsave        = 0
+        self.nsave        = np.nan
 
 
 ###############################################################################
@@ -132,13 +143,16 @@ class XTCExporter(object):
 	self.ehits[2].append() #evt index
             
 	# Get the Xray spectrometer analyser data
-	
+	XrayImg=self.UXS.raw(evt)
+	if XrayImg is not None:
+	    tmp=UXSDataPreProcessing(XrayImg)
+	    uxsPCArr[self.nsave,:]=tmp.StandardAnalysis()
 	# Get the ITOF data
         
-	itofdata = self.ITOF.waveform(evt)
-        if itofdata is not None:
-            itofyield = np.sum(itofdata)
-            itofArr[self.nsave] = itofyield
+	iwf = self.ITOF.waveform(evt)[0]
+        if iwf is not None:
+            tmp=ITOFDataPreProcessing(iwf)
+            itofArr[self.nsave] = tmp.StandardAnalysis()
  	
         # Get the environnement data 
         
@@ -146,7 +160,7 @@ class XTCExporter(object):
         
         gmddata  = self.GMD.get(evt)
 
-	samplepressuredata = self.EPICS.get(evt)
+	samplepressuredata = self.PRESS(evt)
     
         # Get the Ebeam data
           
@@ -168,7 +182,6 @@ class XTCExporter(object):
         
         evtid                   = evt.get(EventId)
         evttime                = evtid.idxtime()
-        
         #get the event Id and timestamp
         self.TimeSt[self.nsave] = evttime.time()
         
@@ -231,7 +244,7 @@ class XTCExporter(object):
                                        'SHESwf':self.shProjArr[0:self.nsave,:].astype(np.float16), \
 				       'UXSpc':,\
 				       'UXSwf':,\
-                                       'ITOF':,\
+                                       'ITOF':self.itofArr[0:self.nsave].astype(np.float16)\
 				       'Pressure':,\
 				       'GasDetector':self.gmdArr[0:self.nsave,:], \
                                        'EnvVar':self.envArr[0:self.nsave,:], \
