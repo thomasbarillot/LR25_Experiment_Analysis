@@ -141,7 +141,7 @@ class SHESPreProcessor(object):
         'This is the standard pre-processing for the SHES OPAL arrays'
         opal_image=self.GetRawImg(event)
         if opal_image is None:
-            return [np.nan], [np.nan], np.nan, np.nan
+            return [np.nan], [np.nan], [np.nan], [np.nan]
         
         raw_x_proj=self.XProj(self.PerspectiveTransform(np.copy(opal_image))) # not thresholded, for covariance
                                                                                # TODO if cv2.warpPerspective doesn't 

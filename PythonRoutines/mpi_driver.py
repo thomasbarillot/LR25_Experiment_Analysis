@@ -42,7 +42,7 @@ args.prefgmd = 0
 # Save files:
 args.save = True
 # Number of shots saved per file
-args.nsave  = 2000
+args.nsave  = 10000
 # number of shots transfered for online plots:
 #args.nonline = 120
 
