@@ -15,7 +15,7 @@ import scipy.ndimage as filter
 from UXSDataPreProcessing import UXSDataPreProcessing
 
 # Visualization
-from psmon.plots import Image,XYPlot, MultiPlot
+from psmon.plots import Image, XYPlot, Hist, MultiPlot
 from psmon import publish
 
 #publish.local = True
@@ -39,11 +39,12 @@ def input_thread():
 thread.start_new_thread(input_thread, ())
 
 ds = DataSource('shmem=psana.0:stop=no')
-print "Connected to shmem"
+#print "Connected to shmem"
 # Testing with old data
 #ds = DataSource('exp=amof6215:run=158') # 2015 beamtime
-#ds = DataSource('exp=amox23616:run=86') # Ghost imaging
-print DetNames()
+#ds = DataSource('exp=amox23616:run=74') # Ghost imaging
+#ds = DataSource('exp=amolr2516:run=88')
+#print DetNames()
 
 # UXS Camera
 opal_det = Detector('OPAL1')
@@ -52,22 +53,27 @@ opal_det = Detector('OPAL1')
 ebeam = Detector('EBeam')
 
 # Accumulate frames in a circularbuffer
-numframes = 1000
+numframes = 200
+# Numframes in the history
+numhistory = 2000
 
 # Keep numframes in a 3D matrix
 images = np.zeros((1024, 1024, numframes))
 spectra = np.zeros((1024, numframes))
-sigmamonitor = [np.zeros(numframes), np.zeros(numframes)]
-posmonitor = [np.zeros(numframes), np.zeros(numframes)]
-heightmonitor = [np.zeros(numframes), np.zeros(numframes)]
-intensitymonitor = np.zeros(numframes)
-filtintensitymonitor = np.zeros(numframes)
+sigmamonitor = [np.zeros(numhistory), np.zeros(numhistory)]
+posmonitor = [np.zeros(numhistory), np.zeros(numhistory)]
+heightmonitor = [np.zeros(numhistory), np.zeros(numhistory)]
+intensitymonitor = np.zeros(numhistory)
+filtintensitymonitor = np.zeros(numhistory)
+
+pulsemonitor = np.zeros(numhistory)
 
 # Keep a circularbuffer of metadata
 metadata = ["" for frame in range(numframes)]
 
 # Keep index for circularbuffers
 frameidx = 0
+histidx = 0
 
 # Keep the accumulated image
 accimage = np.zeros((1024,1024))
@@ -96,13 +102,26 @@ for nevt, evt in enumerate(ds.events()):
     
     #opal_raw = np.rot90(opal_raw.copy()) # Do not rotate on LR25!
     uxspre = UXSDataPreProcessing()
+    opal_raw = uxspre.FilterImage(opal_raw)
     [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(opal_raw, True)
     energyscale = uxspre.energyscale
+
+    # Sort peaks on energy rather than intensity
+    pulsemonitor[histidx] = 0 
+    if not np.isnan(sigma1) and not np.isnan(sigma2):
+        if int1 > 10000 and int2 > 10000:
+            pulsemonitor[histidx] = 2
+            if pos2 > pos1:
+                pos1, sigma1, int1, pos2, sigma2, int2 = pos2, sigma2, int2, pos1, sigma1, int1
+    elif not np.isnan(sigma1):
+        if int1 > 10000:
+            pulsemonitor[histidx] = 1
     
     # Make the accumulation
     # TODO make sure this don't accumulate the floating point error
     accimage -= images[:,:,frameidx]
-    images[:,:,frameidx] = uxspre.image
+    images[:,:,frameidx] = uxspre.FilterImage(uxspre.image)
+    #images[:,:,frameidx] = uxspre.image
     accimage += images[:,:,frameidx]
     
     # Add spectrum to circular buffer
@@ -111,20 +130,20 @@ for nevt, evt in enumerate(ds.events()):
     accspectrum = np.sum(spectra,axis=1)
 
     # Pos monitor
-    posmonitor[0][frameidx] = pos1
-    posmonitor[1][frameidx] = pos2
+    posmonitor[0][histidx] = pos1
+    posmonitor[1][histidx] = pos2
 
     # Sigma monitor
-    sigmamonitor[0][frameidx] = sigma1
-    sigmamonitor[1][frameidx] = sigma2
+    sigmamonitor[0][histidx] = sigma1
+    sigmamonitor[1][histidx] = sigma2
 
     # Heightmonitor
-    heightmonitor[0][frameidx] = int1
-    heightmonitor[1][frameidx] = int2
+    heightmonitor[0][histidx] = int1
+    heightmonitor[1][histidx] = int2
 
     # Intensity monitor
-    intensitymonitor[frameidx] = np.sum(spectrum)
-    filtintensitymonitor[frameidx] = np.sum(filtspec)
+    intensitymonitor[histidx] = np.sum(spectrum)
+    filtintensitymonitor[histidx] = np.sum(filtspec)
 
     # Only publish every nth frame
     npublish = 5
@@ -141,9 +160,11 @@ for nevt, evt in enumerate(ds.events()):
             fitresults = UXSDataPreProcessing.Gaussian([int1, pos1, sigma1], cutenergyscale)
         else:
             fitresults = np.zeros(1024)
-        livetitle = """<table><tr><td>Pos1:</td><td>{:.2f}</td><td>Sigma1:</td><td>{:.2f}</td></tr>
+        livetitle = """<table><tr><td>Live</td><td>-----------</td><td>----------</td><td>-----------</td></tr>
+                              <tr><td>Pos1:</td><td>{:.2f}</td><td>Sigma1:</td><td>{:.2f}</td></tr>
                               <tr><td>Pos2:</td><td>{:.2f}</td><td>Sigma2:</td><td>{:.2f}</td></tr>
-                       </table>""".format(pos1,sigma1,pos2,sigma2)
+                              <tr><td>"Int2/Int1":</td><td>{:.2f}</td><td></td><td></td></tr>
+                       </table>""".format(pos1,sigma1,pos2,sigma2,(int2*sigma2)/(int1*sigma1))
         # Send a multiplot
         plotimglive = Image(0, "Live", uxspre.image)
         plotimgacc = Image(0, "Acc", accimage)
@@ -158,21 +179,28 @@ for nevt, evt in enumerate(ds.events()):
 
         # 2nd UXSMonitor
         multi = MultiPlot(0, "UXSMonitor2 {} Hz {}".format(speed, metadata[frameidx]), ncols=3)
-        plotsigma = XYPlot(0, "Sigma1: {:.2f}, Sigma2: {:.2f}".format(sigma1,sigma2), 2*[range(numframes)], [np.roll(s, -frameidx-1) for s in sigmamonitor])
-        plotheight = XYPlot(0, "Height1: {:.2f}, Height2: {:.2f}".format(int1,int2), 2*[range(numframes)], [np.roll(h, -frameidx-1) for h in heightmonitor])
-        plotpos = XYPlot(0, "Pos1: {:.2f}, Pos2:{:.2f}".format(pos1,pos2), 2*[range(numframes)], [np.roll(p, -frameidx-1) for p in posmonitor])
-        plotintensity = XYPlot(0, "Intensity", range(numframes), np.roll(intensitymonitor, -frameidx-1))
-        plotfiltintensity = XYPlot(0, "Filtered Intensity", range(numframes), np.roll(filtintensitymonitor, -frameidx-1))
+        plotsigma = XYPlot(0, "Sigma1: {:.2f}<br>Sigma2: {:.2f}".format(sigma1,sigma2), 2*[range(numhistory)], [np.roll(s, -histidx-1) for s in sigmamonitor], formats='.')
+        plotheight = XYPlot(0, "Height1: {:.2f}<br>Height2: {:.2f}".format(int1,int2), 2*[range(numhistory)], [np.roll(h, -histidx-1) for h in heightmonitor], formats='.')
+        plotpos = XYPlot(0, "Pos1: {:.2f}<br>Pos2:{:.2f}".format(pos1,pos2), 2*[range(numhistory)], [np.roll(p, -histidx-1) for p in posmonitor], formats='.')
+        plotintensity = XYPlot(0, "Intensity", range(numhistory), np.roll(intensitymonitor, -histidx-1), formats='.')
+        plotfiltintensity = XYPlot(0, "Filtered Intensity", range(numhistory), np.roll(filtintensitymonitor, -histidx-1), formats='.')
+        pulsehistogram, pulsehistogramedges = np.histogram(pulsemonitor,3)
+        plotpulsemonitor = Hist(0, "Pulse count histogram", pulsehistogramedges, pulsehistogram)
         multi.add(plotsigma)
         multi.add(plotheight)
         multi.add(plotpos)
         multi.add(plotintensity)
         multi.add(plotfiltintensity)
+        multi.add(plotpulsemonitor)
         publish.send("UXSMonitor2", multi)
  
     # Iterate framenumber
     frameidx += 1
     frameidx = frameidx%numframes
+
+    # Numhistory
+    histidx +=1
+    histidx = histidx%numhistory
 
     # Save to file
     if saveNow:
