@@ -18,30 +18,32 @@ class UXSDataPreProcessing:
 
         # Hardcoded energy calibration
         # Defined as [Channel, Energy]
-        energycalibrationpoints = np.array([[0, -500],
-                                            [512, 100],
-                                            [1024, 500]])
+        energycalibrationpoints = np.array([[522, 522],
+                                            [570, 513],
+                                            [287.15, 535.4]])
         # Create energy scale by polyfitting calibrationpoints
-        energypoly = np.polyfit(energycalibrationpoints[:,0], energycalibrationpoints[:,1], 2)
+        energypoly = np.polyfit(energycalibrationpoints[:,0], energycalibrationpoints[:,1], 1)
         # Todo change to hardcoded
-        self.energyscale = np.polyval(energypoly, np.arange(0,1024)) # TODO also cut the energy scale when defining range
+        #self.energyscale = np.polyval(energypoly, np.arange(0,1024)) # TODO also cut the energy scale when defining range
         self.energyscale = np.arange(0,1024)
 
 
-    def FilterImage(self, sigma=1, order=0, threshold=100):
+    @staticmethod
+    def FilterImage(image, sigma=1, order=0, threshold=80):
         """
         Gaussian filter and threshold for the image.
         """
         # Gaussian filter
-        self.image = scipy.ndimage.gaussian_filter(self.image, sigma=sigma, order=order)
+        image = scipy.ndimage.gaussian_filter(image, sigma=sigma, order=order)
         
         # Threshold
-        idx = self.image[:,:] < threshold
-        self.image[idx] = 0
+        idx = image[:,:] < threshold
+        image[idx] = 0
     
         # Remove border
-        self.image[0,:] = 0
-        self.image[:,0] = 0       
+        image[0,:] = 0
+        image[:,0] = 0
+        return image
 
     def MaskImage(self, xmin=0,xmax=1024,ymin=0,ymax=1024):
         """
@@ -243,7 +245,20 @@ class UXSDataPreProcessing:
             p = UXSDataPreProcessing.DoubleGaussianFit(
                             energyscale, data, data[pos1idx], peaks[0], sigmas[0], data[pos2idx], peaks[1], sigmas[1])
             height1, pos1, sigma1, height2, pos2, sigma2 = p
-        return height1, pos1, sigma1, height2, pos2, sigma2
+        return height1, pos1, np.abs(sigma1), height2, pos2, np.abs(sigma2)
+
+    @staticmethod
+    def RemoveBadPeaks(height,pos,sigma):
+        """
+        Set values to NaN if peak is outside regions
+        """
+        if sigma > 500:
+            sigma = height = pos = np.nan
+        if sigma < 1:
+            sigma = height = pos = np.nan
+        if height < 1:
+            sigma = height = pos = np.nan
+        return height,pos,sigma
 
     @staticmethod
     def RudimentaryBackground(image):
@@ -303,6 +318,8 @@ class UXSDataPreProcessing:
         # Fit single or double gaussian peaks
         height1, pos1, sigma1, height2, pos2, sigma2 = self.DoPeakFit(energyscale, wf, peaks, sigmas)
         # TODO integrate instead of just returning height
+        height1, pos1, sigma1 = self.RemoveBadPeaks(height1,pos1,sigma1)
+        height2, pos2, sigma2 = self.RemoveBadPeaks(height2,pos2,sigma2)
         int1 = height1
         int2 = height2
         if returnmore:
