@@ -227,6 +227,7 @@ class UXSDataPreProcessing:
         returns height1, pos1, sigma1, height2, pos2, sigma2
         """
         for peak, sigma in zip(peaks, sigmas)[:]:
+            # Todo change if energyscale is reverseproportional to pixel
             if peak < energyscale[0] or peak > energyscale[-1]:
                 peaks.remove(peak)
                 sigmas.remove(sigma)
@@ -290,19 +291,26 @@ class UXSDataPreProcessing:
         # Fix the image
         self.image = image.copy()
         energyscale = self.energyscale
-        self.CorrectImageGeometry()
+        #self.CorrectImageGeometry()
         # Find a rudimentary background
         # Todo get real dark frames
-        bg = self.RudimentaryBackground(image)
+        #bg = self.RudimentaryBackground(image)
         # Set everything outside region to 0
-        #self.MaskImage(xmin=520, xmax=525, ymin=0, ymax=1024)
+        #self.MaskImage(xmin=0, xmax=1024, ymin=400, ymax=600)
         wf = self.CalculateProjection(self.image)
         unfilteredwf = wf.copy()
+        
+        # Thresholding the image
+        idx = self.image[:,:] < 200
+        self.image[idx] = 0
+ 
+        #bg = self.RudimentaryBackground(image)
+        wf = self.CalculateProjection(self.image)
         # Cut to length
         #wf, energyscale = self.CutToLength(wf, self.energyscale, [10,400]) # Pixelvalues
        
         # Make rudimentary background supression
-        wf = wf-1024*bg
+        #wf = wf-1024*bg # Remember change this if you mask the image
         ## Smoothing
         wf = self.GaussianFilter(wf, 5)
         #wf = self.RemoveNegative(wf)
@@ -314,7 +322,7 @@ class UXSDataPreProcessing:
 
         ## Peakfinding
         # Find peaks by method of moments above threshold
-        peaks, sigmas =  self.DetectPeaks(energyscale, wf, threshold=0.5)
+        peaks, sigmas =  self.DetectPeaks(energyscale, wf, threshold=0.25)
         # Fit single or double gaussian peaks
         height1, pos1, sigma1, height2, pos2, sigma2 = self.DoPeakFit(energyscale, wf, peaks, sigmas)
         # TODO integrate instead of just returning height
