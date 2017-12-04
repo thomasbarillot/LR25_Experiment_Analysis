@@ -34,7 +34,7 @@ args.XTCAV  = 'xtcav'
 # GMD intensity threshold for shots to be considered for online plots:
 #args.gmdThr = 0.1
 # Prefered gmd value for online plots:
-#args.prefgmd = 0
+args.prefgmd = 0
 
 # Prefered  channel for online plots and raw traces of itof:
 #args.prefch = 1
@@ -42,7 +42,7 @@ args.XTCAV  = 'xtcav'
 # Save files:
 args.save = True
 # Number of shots saved per file
-args.nsave  = 2000
+args.nsave  = 10000
 # number of shots transfered for online plots:
 #args.nonline = 120
 
