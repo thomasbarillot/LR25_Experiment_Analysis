@@ -91,6 +91,7 @@ class XTCExporter(object):
         self.uxsPCArr = np.zeros((self.args.nsave, 6))
         # Xray spectro array 2D: Energy projection
         self.uxsProjArr = np.zeros((self.args.nsave, uxslength))
+        self.uxsProjArr2 = np.zeros((self.args.nsave, uxslength))
 
         # ITOF
         # micro tof: ion yield
@@ -125,6 +126,7 @@ class XTCExporter(object):
         # initialize arrays to nan
         self.shProjArr[:, :] = np.nan
         self.uxsProjArr[:, :] = np.nan
+        self.uxsProjArr2[:, :] = np.nan
         self.uxsPCArr[:, :] = np.nan
         self.itofArr[:, :] = np.nan
 
@@ -184,9 +186,10 @@ class XTCExporter(object):
         # Get the Xray spectrometer analyser data
         XrayImg = self.UXS.raw(evt)
         if XrayImg is not None:
-            PCs, proj = self.UXS_Pre.StandardAnalysis(XrayImg)
+            PCs, proj, proj2 = self.UXS_Pre.StandardAnalysis(XrayImg)
             self.uxsPCArr[self.nsave, :] = PCs
             self.uxsProjArr[self.nsave, :] = proj
+            self.uxsProjArr2[self.nsave, :] = proj2
         else:
             print 'No UXS data ({0} events saved)'.format(self.nsave)
 
@@ -288,6 +291,10 @@ class XTCExporter(object):
             if verbose:
                 print 'Found UXS proj'
             return False
+        if not np.isnan(self.uxsProjArr2[nsave, :]).all():
+            if verbose:
+                print 'Found UXS proj2'
+            return False
         if not np.isnan(self.itofArr[nsave, :]).all():
             if verbose:
                 print 'Found ITOF data'
@@ -345,6 +352,7 @@ class XTCExporter(object):
                 'SHESwf': self.shProjArr[0:self.nsave, :].astype(np.float32),
                 'UXSpc': self.uxsPCArr[0:self.nsave, :].astype(np.float32),
                 'UXSwf': self.uxsProjArr[0:self.nsave, :].astype(np.float32),
+                'UXSwf2': self.uxsProjArr2[0:self.nsave, :].astype(np.float32),
                 'ITOF': self.itofArr[0:self.nsave, :].astype(np.float32),
                 'XTCAV': self.xtcavPCArr[0:self.nsave, :],
                 'Pressure': self.sPressArr[0:self.nsave],
