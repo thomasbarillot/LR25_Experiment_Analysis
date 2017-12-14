@@ -4,6 +4,8 @@ import numpy as np
 import scipy.optimize
 import scipy.ndimage
 
+import pickle
+
 warnings.filterwarnings('ignore',category=UserWarning,module='UXS')
 
 class UXSDataPreProcessing:
@@ -26,6 +28,11 @@ class UXSDataPreProcessing:
         # Todo change to hardcoded
         #self.energyscale = np.polyval(energypoly, np.arange(0,1024)) # TODO also cut the energy scale when defining range
         self.energyscale = np.arange(0,1024)
+
+        # Load DarkFrame
+        with open('/reg/d/psdm/amo/amolr2516/calib/UXS/DarkFramerun117.p', 'rb') as f:
+            data = pickle.load(f)
+        self.darkframe = data['MeanDark']
 
 
     @staticmethod
@@ -283,6 +290,18 @@ class UXSDataPreProcessing:
         plot = XYPlot(0, title, x, y)
         publish.send("UXSDebug", plot)
 
+
+    @staticmethod
+    def RemoveDark(dark, image, threshold=50):
+        """
+        Removes the dark from image.
+        Afterwards, removes pixels lower than threshold
+        """
+        darkremoved = image - dark
+        darkremoved[darkremoved < threshold] = 0
+        return darkremoved
+
+
     def StandardAnalysis(self, image, returnmore=False):
         """
         This is the standard run that we do
@@ -300,6 +319,10 @@ class UXSDataPreProcessing:
         wf = self.CalculateProjection(self.image)
         unfilteredwf = wf.copy()
         
+        # Create spectrum with darkremoved and thresholded
+        darkremoved = self.RemoveDark(self.darkframe, image, threshold=60)
+        darkremovedspectrum = self.CalculateProjection(darkremoved)
+
         # Thresholding the image
         idx = self.image[:,:] < 200
         self.image[idx] = 0
@@ -330,7 +353,11 @@ class UXSDataPreProcessing:
         height2, pos2, sigma2 = self.RemoveBadPeaks(height2,pos2,sigma2)
         int1 = height1
         int2 = height2
+        # Sort peaks so that highest pixelvalue(lowest energy) is always first
+        if not np.isnan(sigma1) and not np.isnan(sigma2):
+            if pos2 > pos1: 
+                pos1, sigma1, int1, pos2, sigma2, int2 = pos2, sigma2, int2, pos1, sigma1, int1
         if returnmore:
             # Also return filtered wf and cut energyscale for online plotting purposes
-            return [pos1, sigma1, int1, pos2, sigma2, int2], unfilteredwf, wf, energyscale
-        return [pos1, sigma1, int1, pos2, sigma2, int2], unfilteredwf
+            return [pos1, sigma1, int1, pos2, sigma2, int2], unfilteredwf, darkremovedspectrum, wf, energyscale
+        return [pos1, sigma1, int1, pos2, sigma2, int2], unfilteredwf, darkremovedspectrum
