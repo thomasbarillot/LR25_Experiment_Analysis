@@ -38,12 +38,12 @@ def input_thread():
 
 thread.start_new_thread(input_thread, ())
 
-ds = DataSource('shmem=psana.0:stop=no')
+#ds = DataSource('shmem=psana.0:stop=no')
 #print "Connected to shmem"
 # Testing with old data
 #ds = DataSource('exp=amof6215:run=158') # 2015 beamtime
 #ds = DataSource('exp=amox23616:run=74') # Ghost imaging
-#ds = DataSource('exp=amolr2516:run=88')
+ds = DataSource('exp=amolr2516:run=203')
 #print DetNames()
 
 # UXS Camera
@@ -102,8 +102,8 @@ for nevt, evt in enumerate(ds.events()):
     
     #opal_raw = np.rot90(opal_raw.copy()) # Do not rotate on LR25!
     uxspre = UXSDataPreProcessing()
-    opal_raw = uxspre.FilterImage(opal_raw)
-    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, filtspec, cutenergyscale = uxspre.StandardAnalysis(opal_raw, True)
+    #opal_raw = uxspre.FilterImage(opal_raw)
+    [pos1, sigma1, int1, pos2, sigma2, int2], spectrum, darkremovespec, filtspec, cutenergyscale = uxspre.StandardAnalysis(opal_raw, True)
     energyscale = uxspre.energyscale
 
     # Sort peaks on energy rather than intensity
@@ -111,8 +111,8 @@ for nevt, evt in enumerate(ds.events()):
     if not np.isnan(sigma1) and not np.isnan(sigma2):
         if int1 > 10000 and int2 > 10000:
             pulsemonitor[histidx] = 2
-            if pos2 > pos1:
-                pos1, sigma1, int1, pos2, sigma2, int2 = pos2, sigma2, int2, pos1, sigma1, int1
+            #if pos2 > pos1:
+            #    pos1, sigma1, int1, pos2, sigma2, int2 = pos2, sigma2, int2, pos1, sigma1, int1
     elif not np.isnan(sigma1):
         if int1 > 10000:
             pulsemonitor[histidx] = 1
@@ -168,7 +168,7 @@ for nevt, evt in enumerate(ds.events()):
         # Send a multiplot
         plotimglive = Image(0, "Live", uxspre.image)
         plotimgacc = Image(0, "Acc", accimage)
-        plotxylive = XYPlot(0, livetitle, [energyscale, cutenergyscale, cutenergyscale], [spectrum, fitresults, filtspec])
+        plotxylive = XYPlot(0, livetitle, [energyscale, cutenergyscale, cutenergyscale], [spectrum, fitresults, darkremovespec])#filtspec])
         plotxyacc = XYPlot(0, "Acc", energyscale, accspectrum)
         multi = MultiPlot(0, "UXSMonitor {} Hz {}".format(speed, metadata[frameidx]), ncols=2)
         multi.add(plotimglive)
