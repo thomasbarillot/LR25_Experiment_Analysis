@@ -6,10 +6,6 @@ import os
 from mpi4py import MPI
 import argparse
 
-# Analysis modules
-sys.path.append(
-    '/reg/neh/home4/tbarillo/amolr2516/LR25_Analysis/PythonRoutines/')
-
 import ITOFDataPreProcessing
 import UXSDataPreProcessing
 import SHESPreProcessing
@@ -352,7 +348,7 @@ class XTCExporter(object):
                 'SHESwf': self.shProjArr[0:self.nsave, :].astype(np.float32),
                 'UXSpc': self.uxsPCArr[0:self.nsave, :].astype(np.float32),
                 'UXSwf': self.uxsProjArr[0:self.nsave, :].astype(np.float32),
-                'UXSwf2': self.uxsProjArr2[0:self.nsave, :].astype(np.float32),
+                'UXSwf_BGsub': self.uxsProjArr2[0:self.nsave, :].astype(np.float32),
                 'ITOF': self.itofArr[0:self.nsave, :].astype(np.float32),
                 'XTCAV': self.xtcavPCArr[0:self.nsave, :],
                 'Pressure': self.sPressArr[0:self.nsave],
